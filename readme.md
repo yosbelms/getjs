@@ -27,7 +27,7 @@ var player = runner(function*(name, table) {
     }
 });
 
-run(function* start() {
+run(function*() {
     var
     table = chan()
 
