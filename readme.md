@@ -72,7 +72,7 @@ aryn.module(function(run, send, receive){
 Runners (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parametter. Aryn takes advantage of the native scheduler, that is, there is not custom scheduler implementation. Runners along with Channels are the main pieces of the Aryn CSP approach.
 
 ### runner(gen: GeneratorFunction): Function
-Returns a new function that executes a new runner each time is called.
+Returns a function that executes a new runner each time it is called.
 ```js
 // create a runner
 var myTask = runner(function*(url){
@@ -81,6 +81,9 @@ var myTask = runner(function*(url){
 
 // run it
 myTask('http://github.com')
+
+// fork it
+myTask('http://gitlab.com')
 ```
 
 
@@ -96,19 +99,19 @@ run(function*(url){
 ## Channels
 Channels are the central piece of CSP, those are structures to communicate and synchronize runners, beetween them, or with the outer world.
 
-Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other receives, once the data has been received the sender will be unblocked and the receptor will be blocked until some data be received. Unbuffered channels are also known as _synchronic channels_. When some data is sent to a buffered channel it only blocks the runners if the buffer is full. The receiver only blocks if there is no data in the buffer. The behavior is exactly like in Go laguage.
+Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other receives, once the data has been received the sender will be unblocked and the receptor will be blocked until the data be received. Unbuffered channels are also known as _synchronic channels_. When some data is sent to a buffered channel it only blocks the runners if the buffer is full. The receiver only blocks if there is no data in the buffer. The behavior is exactly like in Go laguage.
 
-Signal channels is a flavor of unbuffered (but not synchronic) channel which satisfaces certain kind of requirements. It will never block the sender, but will rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it can be throttled.
+A signal channel is a flavored unbuffered (but not synchronic) channel which satisfaces certain kind of requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it can be throttled.
 
 
-### chan([bufferSize: Number]): Channel
+### chan(bufferSize?: Number): Channel
 Creates a new `channel`
 ```js
 var ch  = chan()  // unbufferd channel
 var bch = chan(5) // buffered channel which its buffer size is 5
 ```
 
-### signal([throttle: Number]): SignalChannel
+### signal(throttle?: Number): SignalChannel
 Creates a signal-channel optianally receiving a throttling time in milliseconds.
 ```js
 var sig  = signal()    // unthrottled
@@ -132,10 +135,10 @@ run(function*(){
     var msg = yield receive(ch)
 })
 ```
-> Notice the `yield` keyword usage.
+> Notice: The `yield` keyword is needed.
 
 Example using jQuery promises implementation:
-```
+```js
 var player = yield receive(jQuery.get('http://api.com/player/1'))
 console.log(player)
 ```
@@ -155,17 +158,20 @@ run(function*(){
     yield suspend(100) // pause it 100 milliseconds
 })
 ```
-> Notice the `yield` keyword
+> Notice: The `yield` keyword is needed
 
-### debug()
-Aryn runners fails silently by default -á la Erlang-, which is good for production but for development not so, this function will makes your runners fail loudly, as a normal Error throwing.
+### debug(debug? Boolean)
+Sets whether to make runners fails loudly or not. The Aryn runners fails just like a normal javascript function by default, which is good for development but for production not so. If you want runners fail silently -á la Erlang- just turn off the debug mode:
+
 ```js
-aryn.debug()
+// make runners fail siletly
+aryn.debug(false)
 ```
 
+> Recommended for production.
 
 ## Idiamatic API
-### filter(filter: [Undefined|Function|Number|Array]): Function
+### filter(filter: Undefined|Function|Number|Array): Function
 Returns a filter function.
 
 If the filter parametter is Undefined the returning function converts its arguments in array and return it.
@@ -220,7 +226,7 @@ $('.button').on('click', sender(ch))
 // send the events parammetters to the channel on each click
 ```
 
-### listen(eventEmitter: Object, eventName: String, channel: Channel, [filterFunction: Function]): Channel
+### listen(eventEmitter: Object, eventName: String, channel: Channel, filterFunction?: Function): Channel
 Adds a callback event listener to an Object and returns a channel passed as 3rd arguments. This utility assumes the `eventEmitter` has a function to add event listeners in the following form:
 ```
 addEventListener|attachEvent|on(eventName: String, callback: Function)
@@ -240,7 +246,7 @@ run(function*() {
 })
 ```
 
-### forever(gen: GeneratorFunction, [params...]): Runner
+### forever(gen: GeneratorFunction, params?...): Runner
 Spawns a new runner but once the runner ends or fails it automatically will restart. It is a convenient way to persistently execute code blocks avoiding `while(true)` boilerplate with additional fail-over.
 
 Example with using `run`:
@@ -263,6 +269,9 @@ forever(function*() {
 })
 ```
 Advantages:
+
 1. `while(true)` boilerplate removal.
+
 2. Restarts once terminated.
+
 3. Restarts when fails.
