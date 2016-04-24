@@ -228,13 +228,13 @@ $('.button').on('click', sender(ch))
 
 ### listen(eventEmitter: Object, eventName: String, channel: Channel, filterFunction?: Function): Channel
 Adds a callback event listener to an Object and returns a channel passed as 3rd arguments. This utility assumes the `eventEmitter` has a function to add event listeners in the following form:
-```
+```js
 addEventListener|attachEvent|on(eventName: String, callback: Function)
 ```
 The default filter is `filter(0)`
 
 Example:
-```
+```js
 elem = document.getElementById('button')
 
 // listen to the element through a SignalChannel
@@ -250,7 +250,7 @@ run(function*() {
 Spawns a new runner but once the runner ends or fails it automatically will restart. It is a convenient way to persistently execute code blocks avoiding `while(true)` boilerplate with additional fail-over.
 
 Example with using `run`:
-```
+```js
 run(function*() {
     while (true) {
         yield suspend(500)
@@ -261,7 +261,7 @@ run(function*() {
 ```
 
 Example using forever:
-```
+```js
 forever(function*() {
     yield suspend(500)
     var event = yield receive(mChan)
