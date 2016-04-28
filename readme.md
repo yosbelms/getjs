@@ -2,7 +2,7 @@
 
 Communicating sequential processes in javascript.
 
-Aryn is a thin library that brings CSP (Communicating Secuential Process) to javascript as a programming idiom. It works around channels, runners, and suspenders, and also *Promises*.
+Aryn is a thin library that brings CSP (Communicating Secuential Process) to javascript as a programming idiom. It works around channels, runners, suspenders, and also *Promises*.
 
 Pingpong (ported from [Go](http://talks.golang.org/2013/advconc.slide#6))
 ```js
