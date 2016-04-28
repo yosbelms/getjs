@@ -4,6 +4,32 @@ Communicating sequential processes in javascript.
 
 Aryn is a thin library that brings CSP (Communicating Secuential Process) to javascript as a programming idiom. It works around channels, runners, suspenders, and also *Promises*.
 
+Examples with jQuery:
+
+Withs DOM events
+```js
+aryn.global()
+
+// listening events
+var clickChan = listen($('#button1'), 'click', signal())
+
+forever(function*(){
+    var event = yield receive(clickChan)
+    console.log(event)
+})
+```
+
+With AJAX
+```js
+aryn.global()
+
+run(function*(){
+    // http request
+    var json = yield receive($.get('http://github.com'))
+    console.log(json)
+})
+```
+
 Pingpong (ported from [Go](http://talks.golang.org/2013/advconc.slide#6))
 ```js
 aryn.global()
@@ -101,7 +127,7 @@ Channels are the central piece of CSP, those are structures to communicate and s
 
 Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other receives, once the data has been received the sender will be unblocked and the receptor will be blocked until the data be received. Unbuffered channels are also known as _synchronic channels_. When some data is sent to a buffered channel it only blocks the runners if the buffer is full. The receiver only blocks if there is no data in the buffer. The behavior is exactly like in Go laguage.
 
-A signal channel is a flavored unbuffered (but not synchronic) channel which satisfaces certain kind of requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it can be throttled.
+A signal channel is a flavored unbuffered (but not synchronic) channel which satisfaces certain kind of requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it ensures to deliver data to all receivers -multicast- and can be throttled.
 
 
 ### chan(bufferSize?: Number): Channel
