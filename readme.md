@@ -130,14 +130,32 @@ Channels can be buffered or unbuffered. When sending data through unbuffered cha
 A stream channel is a flavored unbuffered (but not synchronic) channel which satisfaces certain kind of requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it ensures to deliver data to all receivers -multicast- and can be throttled.
 
 
-### chan(bufferSize?: Number): Channel
-Creates a new `channel`
+### chan(bufferSize?: Number, transform?: Function): Channel
+Creates a new `channel`. If `transform` is given then each value will be transformed it on send.
 ```js
 var ch  = chan()  // unbufferd channel
 var bch = chan(5) // buffered channel which its buffer size is 5
 ```
 
-### stream(throttle?: Number): StreamChannel
+With tranformers:
+```js
+var ch = chan(3, function(v){ return v * 2 })
+
+send(ch, 1)
+send(ch, 2)
+send(ch, 3)
+
+run(function(){
+    console.log(yield receive(ch))
+})
+
+output:
+2
+4
+6
+```
+
+### stream(throttle?: Number, transform? Function): StreamChannel
 Creates a stream-channel optianally receiving a throttling time in milliseconds.
 ```js
 var sig  = stream()    // unthrottled

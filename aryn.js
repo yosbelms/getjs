@@ -188,21 +188,19 @@ Buffer.prototype = {
     }
 }
 
-function Channel(buffer) {
+function Channel(buffer, transform) {
     this.id                 = Channel.num++;
     this.buffer             = buffer;
     this.closed             = false;
     this.data               = void 0;
     this.senderSuspenders   = [];
     this.receiverSuspenders = [];
+    this.transform          = transform || indentityFn;
 }
 
 Channel.num = 0;
 
 Channel.prototype = {
-
-    encode : indentityFn,
-    decode : indentityFn,
 
     receive: function() {
         var data;
@@ -215,7 +213,7 @@ Channel.prototype = {
                 }
                 data      = this.data;
                 this.data = void 0;
-                return this.decode(data);
+                return data;
             } else {
                 return (new Suspender()).pushToArray(this.receiverSuspenders);
             }
@@ -228,7 +226,7 @@ Channel.prototype = {
             if (this.senderSuspenders[0]) {
                 this.senderSuspenders.shift().release();
             }
-            return this.decode(this.buffer.shift());
+            return this.buffer.shift();
         }
     },
 
@@ -244,19 +242,19 @@ Channel.prototype = {
             } else {
                 if (this.receiverSuspenders[0]) {
                     this.data = void 0;
-                    this.receiverSuspenders.shift().release(this.decode(this.encode(data)));                    
+                    this.receiverSuspenders.shift().release(this.transform(data));                    
                     return new Suspender(0);
                 }
             }
-            this.data = this.encode(data);
+            this.data = this.transform(data);
             return (new Suspender()).pushToArray(this.senderSuspenders);
         }
 
         // if buffered        
         if (! this.buffer.isFull()) {
-            this.buffer.push(this.encode(data));
+            this.buffer.push(this.transform(data));
             if (this.receiverSuspenders[0]) {
-                this.receiverSuspenders.shift().release(this.decode(this.buffer.shift()));
+                this.receiverSuspenders.shift().release(this.buffer.shift());
             }
         }
 
@@ -273,7 +271,7 @@ Channel.prototype = {
 }
 
 // StreamChannel
-function StreamChannel(wait) {
+function StreamChannel(wait, transform) {
     this.id                 = Channel.num++;
     this.closed             = false;
     this.receiverSuspenders = [];
@@ -283,6 +281,7 @@ function StreamChannel(wait) {
     this.releasingTime = 0;
 
     this.trailingEdgeTimeout = null;
+    this.transform = transform || indentityFn;
 }
 
 StreamChannel.prototype = copy({
@@ -302,11 +301,11 @@ StreamChannel.prototype = copy({
         clearTimeout(this.trailingEdgeTimeout);
 
         if (remaining <= 0) {
-            Suspender.releaseAll(this.receiverSuspenders, this.encode(this.decode(data)));
+            Suspender.releaseAll(this.receiverSuspenders, this.transform(data));
             this.resetTimer(now);
         } else {
             this.trailingEdgeTimeout = setTimeout(function() {
-                Suspender.releaseAll(me.receiverSuspenders, this.encode(this.decode(data)));
+                Suspender.releaseAll(me.receiverSuspenders, this.transform(data));
                 me.resetTimer(Date.now());
             }, remaining);
         }
@@ -437,20 +436,20 @@ var API = {
         return new Suspender(t);
     },
 
-    chan: function chan(size) {
+    chan: function chan(size, transform) {
         var ch;
         if (size instanceof Buffer) {
-            ch = new Channel(size);
+            ch = new Channel(size, transform);
         } else if (isNaN(size)) {
-            ch = new Channel();
+            ch = new Channel(null, transform);
         } else {
-            ch = new Channel(new Buffer(size));
+            ch = new Channel(new Buffer(size), transform);
         }
         return ch;
     },
 
-    stream: function stream(wait) {
-        return new StreamChannel(wait);
+    stream: function stream(wait, transform) {
+        return new StreamChannel(wait, transform);
     },
 
     sender: function sender(chan, filtr) {
