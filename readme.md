@@ -11,7 +11,7 @@ Withs DOM events
 aryn.global()
 
 // listening events
-var clickChan = listen($('#button1'), 'click', signal())
+var clickChan = listen($('#button1'), 'click', stream())
 
 forever(function*(){
     var event = yield receive(clickChan)
@@ -127,7 +127,7 @@ Channels are the central piece of CSP, those are structures to communicate and s
 
 Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other receives, once the data has been received the sender will be unblocked and the receptor will be blocked until the data be received. Unbuffered channels are also known as _synchronic channels_. When some data is sent to a buffered channel it only blocks the runners if the buffer is full. The receiver only blocks if there is no data in the buffer. The behavior is exactly like in Go laguage.
 
-A signal channel is a flavored unbuffered (but not synchronic) channel which satisfaces certain kind of requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it ensures to deliver data to all receivers -multicast- and can be throttled.
+A stream channel is a flavored unbuffered (but not synchronic) channel which satisfaces certain kind of requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it ensures to deliver data to all receivers -multicast- and can be throttled.
 
 
 ### chan(bufferSize?: Number): Channel
@@ -137,11 +137,11 @@ var ch  = chan()  // unbufferd channel
 var bch = chan(5) // buffered channel which its buffer size is 5
 ```
 
-### signal(throttle?: Number): SignalChannel
-Creates a signal-channel optianally receiving a throttling time in milliseconds.
+### stream(throttle?: Number): StreamChannel
+Creates a stream-channel optianally receiving a throttling time in milliseconds.
 ```js
-var sig  = signal()    // unthrottled
-var tsig = signal(100) // signal with a 100 msecs throttle
+var sig  = stream()    // unthrottled
+var tsig = stream(100) // stream with a 100 msecs throttle
 ```
 
 ### send(channel: Channel, data: Object)
@@ -263,8 +263,8 @@ Example:
 ```js
 elem = document.getElementById('button')
 
-// listen to the element through a SignalChannel
-ch = listen(elem, 'click', signal())
+// listen to the element through a StreamChannel
+ch = listen(elem, 'click', stream())
 
 // log to the console all sended event objects
 run(function*() {

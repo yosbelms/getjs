@@ -272,8 +272,8 @@ Channel.prototype = {
     }
 }
 
-// SignalChannel
-function SignalChannel(wait) {
+// StreamChannel
+function StreamChannel(wait) {
     this.id                 = Channel.num++;
     this.closed             = false;
     this.receiverSuspenders = [];
@@ -285,7 +285,7 @@ function SignalChannel(wait) {
     this.trailingEdgeTimeout = null;
 }
 
-SignalChannel.prototype = copy({
+StreamChannel.prototype = copy({
 
     receive: function() {
         return (new Suspender()).pushToArray(this.receiverSuspenders);
@@ -449,8 +449,8 @@ var API = {
         return ch;
     },
 
-    signal: function signal(wait) {
-        return new SignalChannel(wait);
+    stream: function stream(wait) {
+        return new StreamChannel(wait);
     },
 
     sender: function sender(chan, filtr) {
@@ -532,7 +532,7 @@ global.aryn = {
     Suspender          : Suspender,
     Runner             : Runner,
     Channel            : Channel,
-    SignalChannel      : SignalChannel,
+    StreamChannel      : StreamChannel,
 
     global: function _global() {
         copy(API, global, true);
