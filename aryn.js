@@ -270,8 +270,8 @@ Channel.prototype = {
     }
 }
 
-// StreamChannel
-function StreamChannel(wait, transform) {
+// Stream
+function Stream(wait, transform) {
     this.id                 = Channel.num++;
     this.closed             = false;
     this.receiverSuspenders = [];
@@ -284,7 +284,7 @@ function StreamChannel(wait, transform) {
     this.transform = transform || indentityFn;
 }
 
-StreamChannel.prototype = copy({
+Stream.prototype = copy({
 
     receive: function() {
         return (new Suspender()).pushToArray(this.receiverSuspenders);
@@ -449,7 +449,7 @@ var API = {
     },
 
     stream: function stream(wait, transform) {
-        return new StreamChannel(wait, transform);
+        return new Stream(wait, transform);
     },
 
     sender: function sender(chan, filtr) {
@@ -531,7 +531,7 @@ global.aryn = {
     Suspender          : Suspender,
     Runner             : Runner,
     Channel            : Channel,
-    StreamChannel      : StreamChannel,
+    Stream             : Stream,
 
     global: function _global() {
         copy(API, global, true);
