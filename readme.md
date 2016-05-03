@@ -11,7 +11,7 @@ Withs DOM events
 aryn.global()
 
 // listening events
-var clickChan = listen($('#button1'), 'click', stream())
+var clickStrm = listen($('#button1'), 'click', stream())
 
 forever(function*(){
     var event = yield receive(clickChan)
@@ -127,7 +127,7 @@ Channels are the central piece of CSP, those are structures to communicate and s
 
 Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other receives, once the data has been received the sender will be unblocked and the receptor will be blocked until the data be received. Unbuffered channels are also known as _synchronic channels_. When some data is sent to a buffered channel it only blocks the runners if the buffer is full. The receiver only blocks if there is no data in the buffer. The behavior is exactly like in Go laguage.
 
-A stream channel is a flavored unbuffered (but not synchronic) channel which satisfaces certain kind of requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it ensures to deliver data to all receivers -multicast- and can be throttled.
+A stream is a flavored unbuffered (but not synchronic) channel which satisfaces certain kind of requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it ensures to deliver data to all receivers -multicast- and can be throttled.
 
 
 ### chan(bufferSize?: Number, transform?: Function): Channel
@@ -155,11 +155,11 @@ output:
 6
 ```
 
-### stream(throttle?: Number, transform? Function): StreamChannel
-Creates a stream-channel optianally receiving a throttling time in milliseconds.
+### stream(throttle?: Number, transform? Function): Stream
+Creates a stream optianally receiving a throttling time in milliseconds.
 ```js
-var sig  = stream()    // unthrottled
-var tsig = stream(100) // stream with a 100 msecs throttle
+var stm  = stream()    // unthrottled
+var tstm = stream(100) // stream throttled with a 100 msecs
 ```
 
 ### send(channel: Channel, data: Object)
@@ -281,7 +281,7 @@ Example:
 ```js
 elem = document.getElementById('button')
 
-// listen to the element through a StreamChannel
+// listen to the element through a Stream
 ch = listen(elem, 'click', stream())
 
 // log to the console all sended event objects
