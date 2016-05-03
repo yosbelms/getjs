@@ -162,7 +162,7 @@ var stm  = stream()    // unthrottled
 var tstm = stream(100) // stream throttled with a 100 msecs
 ```
 
-### send(channel: Channel, data: Object)
+### yield? send(channel: Channel, data: Object)
 Sends data to a channel. Always use it preceded by the `yield` keyword, unless you are using it from outside of a runner.
 ```js
 var ch = chan()
@@ -171,7 +171,7 @@ run(function*(){
 })
 ```
 
-### receive(channel: Channel): Object
+### yield receive(channel: Channel): Object
 Receives data from a channel or a Promise.
 ```js
 var ch = chan()
@@ -195,7 +195,7 @@ close(ch)
 
 
 ## Utilities
-### suspend(time: Number)
+### yield suspend(time: Number)
 Suspends a runner during the specified time(in milliseconds).
 ```js
 run(function*(){
