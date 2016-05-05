@@ -1,9 +1,19 @@
+var global_ = typeof global !== 'undefined'
+        ? global
+        : typeof window !== 'undefined'
+        ? window
+        : typeof self !== 'undefined'
+        ? self
+        : this;
+
 (function(global) {
 "use strict";
 
 var
 slice       = Array.prototype.slice,
 indentityFn = function(x){ return x };
+
+
 
 function Suspender(timeout) {
     this.id       = Suspender.num++;
@@ -41,7 +51,6 @@ Suspender.prototype = {
             this.released  = true;
             runner         = this.runner;
             this.runner    = null;
-
             setTimeout(function(){ runner.runNext(withValue) }, 0);
         }
     },
@@ -96,7 +105,7 @@ Runner.prototype = {
         this.args         = arguments;
         this.routineState = { done: false, value: void 0 };
         this.routine      = this.generator.apply({}, this.args);
-        
+
         setTimeout(function(){
             me.updateState(Runner.RUNNING);
             me.runNext();    
@@ -572,4 +581,4 @@ global.aryn = {
 
 copy(API, global.aryn);
 
-})(this);
+})(global_);
