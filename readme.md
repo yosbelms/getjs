@@ -1,12 +1,12 @@
 #Aryn
 
-Communicating sequential processes in javascript.
+Communicating sequential processes in JavaScript.
 
-Aryn is a thin library that brings CSP (Communicating Secuential Process) to javascript as a programming idiom. It works around channels, runners, suspenders, and also *Promises*.
+Aryn is a thin library that brings CSP (Communicating Sequential Processes) to JavaScript as a programming idiom. It is built around channels, runners, suspenders, and also *Promises*.
 
 Examples with jQuery:
 
-Withs DOM events
+With DOM events
 ```js
 aryn.global()
 
@@ -69,14 +69,14 @@ run(function*() {
 
 ## With Aryn
 
-* Your application will be composed by lightweight proccesses which comunicates by passing messages through channels.
-* Your will take advantage of the javascript asynchronicity by writting synchronic code.
-* You will be able reuse your Promise based library avoiding the `then-callback` boilerplate.
+* Your application will be composed of lightweight proccesses which comunicate by passing messages through channels.
+* You will be able to take advantage of the JavaScript asynchronicity by writing synchronic code.
+* You will be able reuse your Promise-based library avoiding `then-callback` boilerplate.
 
 
 ## API
 
-The API is published under the `aryn.` namespace, however it is possible to use it globally by using `aryn.global()` function. There is also a modular mode using Angular-like injection.
+The API is published under the `aryn.` namespace, however it is possible to use it globally by using the `aryn.global()` function. There is also a modular mode using Angular-like injection.
 
 ```js
 // qualified
@@ -92,10 +92,10 @@ aryn.module(function(run, send, receive){
 })
 ```
 
-> The rest of this document assumes to use `aryn.global()` for all the following code snipets.
+> The rest of this document assumes using `aryn.global()` for all the following code snippets.
 
 ## Runners
-Runners (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parametter. Aryn takes advantage of the native scheduler, that is, there is not custom scheduler implementation. Runners along with Channels are the main pieces of the Aryn CSP approach.
+Runners (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parameter. Aryn takes advantage of the native scheduler, that is, there is not a custom scheduler implementation. Runners along with Channels are the main pieces of the Aryn CSP approach.
 
 ### runner(gen: GeneratorFunction): Function
 Returns a function that executes a new runner each time it is called.
@@ -123,21 +123,21 @@ run(function*(url){
 
 
 ## Channels
-Channels are the central piece of CSP, those are structures to communicate and synchronize runners, beetween them, or with the outer world.
+Channels are the central piece of CSP. They are structures used to communicate and synchronize runners, between them or with the outside world.
 
-Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other receives, once the data has been received the sender will be unblocked and the receptor will be blocked until the data be received. Unbuffered channels are also known as _synchronic channels_. When some data is sent to a buffered channel it only blocks the runners if the buffer is full. The receiver only blocks if there is no data in the buffer. The behavior is exactly like in Go laguage.
+Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other runner receives. Once the data has been received, the sender will be unblocked and the receptor will be blocked until new data is received. Unbuffered channels are also known as _synchronic channels_. When some data is sent to a buffered channel it only blocks the runners if the buffer is full. The receiver only blocks if there is no data in the buffer. The behavior is exactly like in Go language.
 
-A stream is a flavored unbuffered (but not synchronic) channel which satisfaces certain kind of requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it ensures to deliver data to all receivers -multicast- and can be throttled.
+A stream is an unbuffered (but not synchronic) channel which satisfies certain requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it guarantees to deliver data to all receivers -multicast- and can be throttled.
 
 
 ### chan(bufferSize?: Number, transform?: Function): Channel
-Creates a new `channel`. If `transform` is given then each value will be transformed it on send.
+Creates a new `channel`. If `transform` is given then each value will be transformed on send.
 ```js
-var ch  = chan()  // unbufferd channel
+var ch  = chan()  // unbuffered channel
 var bch = chan(5) // buffered channel which its buffer size is 5
 ```
 
-With tranformers:
+With transformers:
 ```js
 var ch = chan(3, function(v){ return v * 2 })
 
@@ -156,7 +156,7 @@ output:
 ```
 
 ### stream(throttle?: Number, transform? Function): Stream
-Creates a stream optianally receiving a throttling time in milliseconds.
+Creates a stream, optionally receiving a throttling time in milliseconds.
 ```js
 var stm  = stream()    // unthrottled
 var tstm = stream(100) // stream throttled with a 100 msecs
@@ -196,7 +196,7 @@ close(ch)
 
 ## Utilities
 ### yield suspend(time: Number)
-Suspends a runner during the specified time(in milliseconds).
+Suspends a runner for the specified time (in milliseconds).
 ```js
 run(function*(){
     yield suspend(100) // pause it 100 milliseconds
@@ -205,27 +205,27 @@ run(function*(){
 > Notice: The `yield` keyword is needed
 
 ### debug(debug? Boolean)
-Sets whether to make runners fails loudly or not. The Aryn runners fails just like a normal javascript function by default, which is good for development but for production not so. If you want runners fail silently -á la Erlang- just turn off the debug mode:
+Sets whether to make runners fails loudly or not. The Aryn runners fail just like a normal JavaScript function by default, which is good for development but not for production. If you want runners to fail silently -á la Erlang- just turn off the debug mode:
 
 ```js
-// make runners fail siletly
+// make runners fail silently
 aryn.debug(false)
 ```
 
 > Recommended for production.
 
-## Idiamatic API
+## Idiomatic API
 ### filter(filter: Undefined|Function|Number|Array): Function
 Returns a filter function.
 
-If the filter parametter is Undefined the returning function converts its arguments in array and return it.
+If the filter parameter is _Undefined_ the returning function converts its arguments into an array and returns that.
 
 ```js
 var filt = filter()
 filt(1, 2) // [1, 2]
 ```
 
-If is a Function, the returned function will be the same as the passed one.
+If given a Function, the returned function will be the same as the one passed in.
 
 ```js
 var filt = filter(function(a, b){
@@ -235,13 +235,13 @@ var filt = filter(function(a, b){
 filt(1, 2) // 3
 ```
 
-If Number, the function will return a n-th (0-based) passed argument.
+If given a number, the filter function will return the n-th (0-based) argument.
 ```js
 var filt = filter(1)
 filt(1, 2) // 2
 ```
 
-If an Array, it will use the array content as keys to extract the values of the properties in filtered object.
+If given an array, it will use the array content as keys to extract the values of the properties in filtered object.
 
 ```js
 var person = {
@@ -256,7 +256,7 @@ filt(person) // {name: 'Yosbel', age: 28}
 ```
 
 ### sender(channel: Channel, filter: Function): Function
-Returns a function that sends its arguments to a channel each time it is called. The channel will receive functions arguments in a form of array.
+Returns a function that sends its arguments to a channel each time it is called. The channel will receive the function's arguments in the form of an array.
 ```js
 var ch = chan()
 var sendr = sender(ch)
@@ -264,14 +264,14 @@ var sendr = sender(ch)
 sendr(1, 2) // an array equal to [1, 2] will be sent
 ```
 
-The true usefullness of this function is to be used with events. Example.
+The true usefulness of this function is when used with events. For example:
 ```js
 $('.button').on('click', sender(ch))
-// send the events parammetters to the channel on each click
+// send the event's parameters to the channel on each click
 ```
 
 ### listen(eventEmitter: Object, eventName: String, channel: Channel, filterFunction?: Function): Channel
-Adds a callback event listener to an Object and returns a channel passed as 3rd arguments. This utility assumes the `eventEmitter` has a function to add event listeners in the following form:
+Adds a callback event listener to an Object and returns a channel passed as the third argument. This utility assumes the `eventEmitter` has a function to add event listeners of the following form:
 ```js
 addEventListener|attachEvent|on(eventName: String, callback: Function)
 ```
@@ -284,14 +284,14 @@ elem = document.getElementById('button')
 // listen to the element through a Stream
 ch = listen(elem, 'click', stream())
 
-// log to the console all sended event objects
+// log to the console all sent event objects
 run(function*() {
     while (true) console.log(yield receive(ch))
 })
 ```
 
 ### forever(gen: GeneratorFunction, params?...): Runner
-Spawns a new runner but once the runner ends or fails it automatically will restart. It is a convenient way to persistently execute code blocks avoiding `while(true)` boilerplate with additional fail-over.
+Spawns a new runner but once the runner ends or fails it is automatically restarted. It is a convenient way to persistently execute code blocks, avoiding `while(true)` boilerplate with additional fail-over.
 
 Example with using `run`:
 ```js
@@ -315,7 +315,6 @@ forever(function*() {
 Advantages:
 
 1. `while(true)` boilerplate removal.
-
 2. Restarts once terminated.
-
 3. Restarts when fails.
+
