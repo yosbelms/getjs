@@ -13,13 +13,20 @@ var
 slice       = Array.prototype.slice,
 indentityFn = function(x){ return x };
 
+function schedule(fn, time) {
+    if (typeof time === 'undefined' && typeof global.setImmediate !== 'undefined') {
+        setImmediate(fn);
+    } else {
+        setTimeout(fn, +time);
+    }
+}
 
 
 function Suspender(timeout) {
     this.id       = Suspender.num++;
     this.runner   = null;
     this.released = false;
-    this.timeout  = isNaN(timeout) ? -1 : timeout;
+    this.timeout  = timeout;
 }
 
 Suspender.num = 0;
@@ -39,8 +46,8 @@ Suspender.prototype = {
 
         me.runner = runner;
 
-        if (me.timeout > -1) {
-            setTimeout(function(){ me.release() }, me.timeout);
+        if (!isNaN(me.timeout)) {
+            schedule(function(){ me.release() }, me.timeout);
         }
     },
 
@@ -51,7 +58,7 @@ Suspender.prototype = {
             this.released  = true;
             runner         = this.runner;
             this.runner    = null;
-            setTimeout(function(){ runner.runNext(withValue) }, 0);
+            schedule(function(){ runner.runNext(withValue) })
         }
     },
 
@@ -105,11 +112,11 @@ Runner.prototype = {
         this.args         = arguments;
         this.routineState = { done: false, value: void 0 };
         this.routine      = this.generator.apply({}, this.args);
-
-        setTimeout(function(){
+        
+        schedule(function(){
             me.updateState(Runner.RUNNING);
             me.runNext();    
-        }, 0);
+        })
     },
 
     runNext: function(withValue) {
@@ -251,7 +258,7 @@ Channel.prototype = {
             } else {
                 if (this.receiverSuspenders[0]) {
                     this.data = void 0;
-                    this.receiverSuspenders.shift().release(this.transform(data));                    
+                    this.receiverSuspenders.shift().release(this.transform(data));
                     return new Suspender(0);
                 }
             }
