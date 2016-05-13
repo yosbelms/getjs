@@ -14,7 +14,7 @@ slice       = Array.prototype.slice,
 indentityFn = function(x){ return x };
 
 function schedule(fn, time) {
-    if (typeof time === 'undefined' && typeof global.setImmediate !== 'undefined') {
+    if (time === void 0 && typeof global.setImmediate !== 'undefined') {
         setImmediate(fn);
     } else {
         setTimeout(fn, +time);
@@ -360,7 +360,7 @@ function isChannel(ch) {
 }
 
 function isPromise(pr) {
-    return pr && typeof pr.then === 'function';
+    return pr && isFunction(pr.then);
 }
 
 function isGeneratorFunction(obj) {
@@ -375,7 +375,7 @@ function isGeneratorFunction(obj) {
         return true;
     }
     proto = constr.prototype;
-    return (typeof proto.next == 'function' && typeof proto.throw == 'function');
+    return (isFunction(proto.next) && isFunction(proto.throw));
 }
 
 function filter(filter) {
@@ -385,7 +385,7 @@ function filter(filter) {
         }
     }
 
-    if (typeof filter === 'function') {
+    if (isFunction(filter)) {
         return filter;
     }
 
@@ -521,7 +521,7 @@ var API = {
 
         for (i = 0; i < len; i++) {
             name = eventFunctionNames[i];                
-            if (typeof obj[name] === 'function') {
+            if (isFunction(obj[name])) {
                 obj[name](eventName, function EventListener() {
                     aryn.send(chan, filtr(arguments));
                 });
@@ -540,7 +540,7 @@ var API = {
 };
 
 global.aryn = {
-    API                : API,    
+    API                : API,
     copy               : copy,
     eventFunctionNames : eventFunctionNames,
 
