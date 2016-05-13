@@ -14,7 +14,7 @@ aryn.global()
 var clickStrm = listen($('#button1'), 'click', stream())
 
 forever(function*(){
-    var event = yield receive(clickChan)
+    var event = yield receive(clickStrm)
     console.log(event)
 })
 ```
