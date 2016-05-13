@@ -1,8 +1,14 @@
-var buff = Buffer(10*1024); // Kb
-buff.fill('0');
+function makeBuffer(size) {
+    var buff = new Array(size), i;
+    //console.log(buff.length);
+    for (i = 0; i < size; i++) {
+        buff[i] = '0';
+    }
+    return buff;
+}
 
-var bigBuff = Buffer(10000*1024); // Kb
-bigBuff.fill('0');
+var buff    = makeBuffer(100*1024); // Kb
+var bigBuff = makeBuffer(10000*1024); // Kb
 
 function time() {
     return (new Date()).getTime()
