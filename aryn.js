@@ -62,6 +62,17 @@ Suspender.prototype = {
         }
     },
 
+    throw: function(e) {
+        var runner;
+
+        if (this.runner) {
+            this.released  = true;
+            runner         = this.runner;
+            this.runner.routine.throw(e);
+            this.runner    = null;
+        }
+    },
+
     pushToArray: function(array) {
         array.push(this);
         return this;
@@ -416,6 +427,26 @@ function wrap(generator, forever) {
     }
 }
 
+function arynifyFn(fn, obj) {
+    return function arynified() {
+        var
+        args = slice.call(arguments),
+        suspender = new Suspender();
+
+        args.push(function(err, value){
+            if (err) {
+                suspender.throw(err);
+            } else {
+                suspender.release(value);    
+            }
+        });
+
+        fn.apply(obj || this, args);
+
+        return suspender;
+    }
+}
+
 var eventFunctionNames = [
     'addEventListener',
     'attachEvent',
@@ -536,6 +567,27 @@ var API = {
         }
 
         return chan;
+    },
+
+    arynify: function(obj) {
+        var
+        newObj, name, prop,
+        syncPrefix = /Sync$/;
+
+        if (! obj) { return }
+
+        if (typeof obj === 'function') {
+            return arynifyFn(obj);
+        } else {
+            newObj = {};            
+            for (name in obj) {                    
+                if (obj.hasOwnProperty(name) && !syncPrefix.test(name)) {
+                    prop = obj[name];
+                    newObj[name] = isFunction(prop) ? arynifyFn(prop, obj) : prop;
+                }
+            }
+            return newObj;
+        }
     }
 };
 
