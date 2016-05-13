@@ -62,6 +62,17 @@ Suspender.prototype = {
         }
     },
 
+    throw: function(e) {
+        var runner;
+
+        if (this.runner) {
+            this.released  = true;
+            runner         = this.runner;
+            this.runner.routine.throw(e);
+            this.runner    = null;
+        }
+    },
+
     pushToArray: function(array) {
         array.push(this);
         return this;
@@ -416,6 +427,50 @@ function wrap(generator, forever) {
     }
 }
 
+function toSuspender(obj) {
+    var susp;
+
+    if (obj instanceof Suspender) {
+        return obj;
+    }
+
+    if (isChannel(obj)) {
+        return obj.receive();
+    }
+
+    if (isPromise(obj)) {
+        susp = new Suspender();
+        obj.then(function receive(v) { susp.release(v) });
+        return susp;
+    }
+
+    if (obj instanceof Runner) {
+        susp = new Suspender();
+        obj.done = function receive(v) { susp.release(v) }
+        return susp;
+    }
+}
+
+function driveFn(fn, obj) {
+    return function driven() {
+        var
+        args = slice.call(arguments),
+        susp = new Suspender();
+
+        args.push(function(err, value) {
+            if (err) {
+                susp.throw(err);
+            } else {
+                susp.release(value);
+            }
+        });
+
+        fn.apply(obj || this, args);
+
+        return susp;
+    }
+}
+
 var eventFunctionNames = [
     'addEventListener',
     'attachEvent',
@@ -485,21 +540,12 @@ var API = {
     },
 
     receive: function receive(obj) {
-        var susp;
-
-        if (isChannel(obj)) {            
-            susp = obj.receive();
-        } else if (isPromise(obj)) {
-            susp = new Suspender();
-            obj.then(function receive(v) { susp.release(v) })
-        } else if (obj instanceof Runner) {
-            susp = new Suspender();
-            obj.done = function receive(v) { susp.release(v) }
+        var susp = toSuspender(obj);
+        if (susp !== void 0) {
+            return susp;
         } else {
             throw 'invalid object to receive from';
         }
-
-        return susp;
     },
 
     close: function close(chan) {
@@ -536,6 +582,27 @@ var API = {
         }
 
         return chan;
+    },
+
+    drive: function(obj) {
+        var
+        newObj, name, prop,
+        syncPrefix = /Sync$/;
+
+        if (! obj) { return }
+
+        if (isFunction(obj)) {
+            return driveFn(obj);
+        } else {
+            newObj = {};            
+            for (name in obj) {                    
+                if (obj.hasOwnProperty(name) && !syncPrefix.test(name)) {
+                    prop = obj[name];
+                    newObj[name] = isFunction(prop) ? driveFn(prop, obj) : prop;
+                }
+            }
+            return newObj;
+        }
     }
 };
 
