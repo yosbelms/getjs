@@ -427,23 +427,47 @@ function wrap(generator, forever) {
     }
 }
 
-function arynifyFn(fn, obj) {
-    return function arynified() {
+function toSuspender(obj) {
+    var susp;
+
+    if (obj instanceof Suspender) {
+        return obj;
+    }
+
+    if (isChannel(obj)) {
+        return obj.receive();
+    }
+
+    if (isPromise(obj)) {
+        susp = new Suspender();
+        obj.then(function receive(v) { susp.release(v) });
+        return susp;
+    }
+
+    if (obj instanceof Runner) {
+        susp = new Suspender();
+        obj.done = function receive(v) { susp.release(v) }
+        return susp;
+    }
+}
+
+function driveFn(fn, obj) {
+    return function driven() {
         var
         args = slice.call(arguments),
-        suspender = new Suspender();
+        susp = new Suspender();
 
-        args.push(function(err, value){
+        args.push(function(err, value) {
             if (err) {
-                suspender.throw(err);
+                susp.throw(err);
             } else {
-                suspender.release(value);    
+                susp.release(value);
             }
         });
 
         fn.apply(obj || this, args);
 
-        return suspender;
+        return susp;
     }
 }
 
@@ -516,21 +540,12 @@ var API = {
     },
 
     receive: function receive(obj) {
-        var susp;
-
-        if (isChannel(obj)) {            
-            susp = obj.receive();
-        } else if (isPromise(obj)) {
-            susp = new Suspender();
-            obj.then(function receive(v) { susp.release(v) })
-        } else if (obj instanceof Runner) {
-            susp = new Suspender();
-            obj.done = function receive(v) { susp.release(v) }
+        var susp = toSuspender(obj);
+        if (susp !== void 0) {
+            return susp;
         } else {
             throw 'invalid object to receive from';
         }
-
-        return susp;
     },
 
     close: function close(chan) {
@@ -569,21 +584,21 @@ var API = {
         return chan;
     },
 
-    arynify: function(obj) {
+    drive: function(obj) {
         var
         newObj, name, prop,
         syncPrefix = /Sync$/;
 
         if (! obj) { return }
 
-        if (typeof obj === 'function') {
-            return arynifyFn(obj);
+        if (isFunction(obj)) {
+            return driveFn(obj);
         } else {
             newObj = {};            
             for (name in obj) {                    
                 if (obj.hasOwnProperty(name) && !syncPrefix.test(name)) {
                     prop = obj[name];
-                    newObj[name] = isFunction(prop) ? arynifyFn(prop, obj) : prop;
+                    newObj[name] = isFunction(prop) ? driveFn(prop, obj) : prop;
                 }
             }
             return newObj;
