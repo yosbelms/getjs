@@ -16,7 +16,7 @@ aryn.run(function*(){
 
 In ~14Kb (unminified and uncompressed) Aryn makes possible to consume previous paradigms to take advantage of the huge JavaScript ecosystem. It also brings CSP (Communicating Sequential Processes) to JavaScript as a programming idiom.
 
-Examples of how Aryn allows you to reuse Prmised-based libraries such as jQuery:
+Examples of how Aryn allows you to reuse Prmise-based libraries such as jQuery:
 
 **DOM events**
 ```js
@@ -25,16 +25,10 @@ aryn.global()
 // listening events
 var clickStrm = listen($('#button1'), 'click', stream())
 
-<<<<<<< HEAD
-forever(function*(){
-    var event = yield receive(clickStrm)
-    console.log(event)
-=======
 run(function*(){
     while(true) {
-        console.log(yield receive(clickChan))
+        console.log(yield receive(clickStrm))
     }
->>>>>>> arynify
 })
 ```
 
