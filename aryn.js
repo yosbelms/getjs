@@ -451,7 +451,7 @@ function toSuspender(obj) {
     }
 }
 
-function driveFn(fn, obj) {
+function driveFn(fn, ctx) {
     return function driven() {
         var
         args = slice.call(arguments),
@@ -465,7 +465,7 @@ function driveFn(fn, obj) {
             }
         });
 
-        fn.apply(obj || this, args);
+        fn.apply(ctx || this, args);
 
         return susp;
     }
@@ -480,10 +480,6 @@ var eventFunctionNames = [
 var API = {
 
     filter: filter,
-
-    runner: function runner(generator, forever) {        
-        return wrap(generator, forever);
-    },
 
     run: function run(gen) {
         var args = slice.call(arguments, 1);
@@ -584,7 +580,7 @@ var API = {
         return chan;
     },
 
-    drive: function(obj) {
+    drive: function(obj, ctx) {
         var
         newObj, name, prop,
         syncPrefix = /Sync$/;
@@ -592,13 +588,13 @@ var API = {
         if (! obj) { return }
 
         if (isFunction(obj)) {
-            return driveFn(obj);
+            return driveFn(obj, ctx);
         } else {
             newObj = {};            
             for (name in obj) {                    
                 if (obj.hasOwnProperty(name) && !syncPrefix.test(name)) {
                     prop = obj[name];
-                    newObj[name] = isFunction(prop) ? driveFn(prop, obj) : prop;
+                    newObj[name] = isFunction(prop) ? driveFn(prop, ctx || obj) : prop;
                 }
             }
             return newObj;

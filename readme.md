@@ -1,25 +1,44 @@
 #Aryn
 
-Communicating sequential processes in JavaScript.
+Unifying solution to tame JavaScript asynchronicity based on generators.
 
-Aryn is a thin library that brings CSP (Communicating Sequential Processes) to JavaScript as a programming idiom. It is built around channels, runners, suspenders, and also *Promises*.
+JavaScript asynchronicity has been an issue to deal with since years ago, techniques such as callbacks, event-driven, and Promises has made the web development easier, but asynchronous code still looks asynchronous. Aryn is a thin library based on generators which ensures your asynchonous code looks synchonous.
 
-Examples with jQuery:
+Example in Node.js:
+```
+var fs = aryn.drive(require('fs'))
 
-With DOM events
+aryn.run(function*(){
+    var stat = aryn.receive(fs.stat(__filename))
+    console.log(stat)
+})
+```
+
+In ~14Kb (unminified and uncompressed) Aryn makes possible to consume previous paradigms to take advantage of the huge JavaScript ecosystem. It also brings CSP (Communicating Sequential Processes) to JavaScript as a programming idiom.
+
+Examples of how Aryn allows you to reuse Prmised-based libraries such as jQuery:
+
+**DOM events**
 ```js
 aryn.global()
 
 // listening events
 var clickStrm = listen($('#button1'), 'click', stream())
 
+<<<<<<< HEAD
 forever(function*(){
     var event = yield receive(clickStrm)
     console.log(event)
+=======
+run(function*(){
+    while(true) {
+        console.log(yield receive(clickChan))
+    }
+>>>>>>> arynify
 })
 ```
 
-With AJAX
+**AJAX**
 ```js
 aryn.global()
 
@@ -30,11 +49,24 @@ run(function*(){
 })
 ```
 
-Pingpong (ported from [Go](http://talks.golang.org/2013/advconc.slide#6))
+Example that shows CSP with Aryn. Pingpong (ported from [Go](http://talks.golang.org/2013/advconc.slide#6))
 ```js
 aryn.global()
 
-var player = runner(function*(name, table) {
+run(function*() {
+    var
+    table = chan()
+
+    player('A', table)
+    player('B', table)
+    
+    yield send(table, {hits: 0})
+    yield suspend(1000)
+
+    close(table)
+})
+
+function player(name, table) { run(function*() {
     var ball;
     while (true) {
         ball = yield receive(table)
@@ -51,27 +83,16 @@ var player = runner(function*(name, table) {
             yield send(table, ball)
         }
     }
-});
+})}
 
-run(function*() {
-    var
-    table = chan()
-
-    player('A', table)
-    player('B', table)
-    
-    yield send(table, {hits: 0})
-    yield suspend(1000)
-
-    close(table)
-})
 ```
 
 ## With Aryn
 
-* Your application will be composed of lightweight proccesses which comunicate by passing messages through channels.
 * You will be able to take advantage of the JavaScript asynchronicity by writing synchronic code.
-* You will be able reuse your Promise-based library avoiding `then-callback` boilerplate.
+* You will be able to reuse any Promise-based library avoiding `then-callback` boilerplate.
+* You will use the whole Node.js asynchonous API whithout the annoying `callback-hell`.
+* You can compose your application of lightweight proccesses which comunicate by passing messages through channels.
 
 
 ## API
@@ -79,7 +100,7 @@ run(function*() {
 The API is published under the `aryn.` namespace, however it is possible to use it globally by using the `aryn.global()` function. There is also a modular mode using Angular-like injection.
 
 ```js
-// qualified
+// namespaced
 aryn.run()
 
 // using the global scope
@@ -97,21 +118,6 @@ aryn.module(function(run, send, receive){
 ## Runners
 Runners (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parameter. Aryn takes advantage of the native scheduler, that is, there is not a custom scheduler implementation. Runners along with Channels are the main pieces of the Aryn CSP approach.
 
-### runner(gen: GeneratorFunction): Function
-Returns a function that executes a new runner each time it is called.
-```js
-// create a runner
-var myTask = runner(function*(url){
-    ...
-})
-
-// run it
-myTask('http://github.com')
-
-// fork it
-myTask('http://gitlab.com')
-```
-
 
 ### run(gen: GeneratorFunction, [params...]): Runner
 Creates a new runner and executes it returning a `runner` object.
@@ -121,6 +127,31 @@ run(function*(url){
 }, 'http://github.com')
 ```
 
+## Driven Callbacks
+Driven callbacks are callbacks converted to the break-point underlaying Aryns architecture, it's the same idea behind **promisifyAll** in Bluebird library.
+
+### drive(object?: Function|Object, ctx?: Object): Object|Function
+Converts a callback-based function or an object containig callback-based functions to a function or object ready to be used in `yield receive()`.
+
+With a function:
+```
+var stat = aryn.drive(require('fs').stat)
+
+aryn.run(function*(){
+    var stats = aryn.receive(stat(__filename))
+    console.log(stats)
+})
+```
+
+With an object containing callback-based functions:
+```
+var fs = aryn.drive(require('fs'))
+
+aryn.run(function*(){
+    var stat = aryn.receive(fs.stat(__filename))
+    console.log(stat)
+})
+```
 
 ## Channels
 Channels are the central piece of CSP. They are structures used to communicate and synchronize runners, between them or with the outside world.
@@ -172,7 +203,7 @@ run(function*(){
 ```
 
 ### yield receive(channel: Channel): Object
-Receives data from a channel or a Promise.
+Receives data from a channel, Promise, or driven functions.
 ```js
 var ch = chan()
 run(function*(){
@@ -185,6 +216,16 @@ Example using jQuery promises implementation:
 ```js
 var player = yield receive(jQuery.get('http://api.com/player/1'))
 console.log(player)
+```
+
+Example using driven callbacks in Node.js:
+```
+var fs = aryn.drive(require('fs'))
+
+aryn.run(function*(){
+    var stat = aryn.receive(fs.stat(__filename))
+    console.log(stat)
+})
 ```
 
 ### close(channel: Channel)
