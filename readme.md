@@ -55,7 +55,7 @@ run(function*() {
     player('B', table)
     
     yield send(table, {hits: 0})
-    yield suspend(1000)
+    yield timeout(1000)
 
     close(table)
 })
@@ -71,7 +71,7 @@ function player(name, table) { run(function*() {
         ball.hits += 1
 
         console.log(name, ball.hits)
-        yield suspend(100)
+        yield timeout(100)
 
         if (! table.closed) {
             yield send(table, ball)
@@ -230,11 +230,11 @@ close(ch)
 
 
 ## Utilities
-### yield suspend(time: Number)
-Suspends a runner for the specified time (in milliseconds).
+### yield timeout(time: Number)
+Stops a runner for the specified time (in milliseconds).
 ```js
 run(function*(){
-    yield suspend(100) // pause it 100 milliseconds
+    yield timeout(100) // pause it 100 milliseconds
 })
 ```
 > Notice: The `yield` keyword is needed
@@ -332,7 +332,7 @@ Example with using `run`:
 ```js
 run(function*() {
     while (true) {
-        yield suspend(500)
+        yield timeout(500)
         var event = yield receive(mChan)
         console.log(event.layerX || event.clientX)
     }
@@ -342,7 +342,7 @@ run(function*() {
 Example using forever:
 ```js
 forever(function*() {
-    yield suspend(500)
+    yield timeout(500)
     var event = yield receive(mChan)
     console.log(event.layerX || event.clientX)
 })
