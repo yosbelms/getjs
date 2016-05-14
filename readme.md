@@ -85,7 +85,7 @@ function player(name, table) { run(function*() {
 
 * You will be able to take advantage of the JavaScript asynchronicity by writing synchronic code.
 * You will be able to reuse any Promise-based library avoiding `then-callback` boilerplate.
-* You will use the whole Node.js asynchonous API whithout the annoying `callback-hell`.
+* You will use the whole Node.js asynchonous API without the annoying `callback-hell`.
 * You can compose your application of lightweight proccesses which comunicate by passing messages through channels.
 
 
@@ -125,7 +125,7 @@ run(function*(url){
 Driven callbacks are callbacks converted to the break-point underlaying Aryns architecture, it's the same idea behind **promisifyAll** in Bluebird library.
 
 ### drive(object?: Function|Object, ctx?: Object): Object|Function
-Converts a callback-based function or an object containig callback-based functions to a function or object ready to be used in `yield receive()`.
+Converts a callback-based function or an object containing callback-based functions to a function or object ready to be used in `yield receive()`.
 
 With a function:
 ```
