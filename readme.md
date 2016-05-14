@@ -1,11 +1,11 @@
 #Aryn
 
-Unifying solution to tame JavaScript asynchronicity based on generators.
+Unifying solution to tame JavaScript asynchronicity.
 
 JavaScript asynchronicity has been an issue to deal with since years ago, techniques such as callbacks, event-driven, and Promises has made the web development easier, but asynchronous code still looks asynchronous. Aryn is a thin library based on generators which ensures your asynchonous code looks synchonous.
 
 Example in Node.js:
-```
+```js
 var fs = aryn.drive(require('fs'))
 
 aryn.run(function*(){
@@ -128,7 +128,7 @@ Driven callbacks are callbacks converted to the break-point underlaying Aryns ar
 Converts a callback-based function or an object containing callback-based functions to a function or object ready to be used in `yield receive()`.
 
 With a function:
-```
+```js
 var stat = aryn.drive(require('fs').stat)
 
 aryn.run(function*(){
@@ -138,7 +138,7 @@ aryn.run(function*(){
 ```
 
 With an object containing callback-based functions:
-```
+```js
 var fs = aryn.drive(require('fs'))
 
 aryn.run(function*(){
@@ -213,7 +213,7 @@ console.log(player)
 ```
 
 Example using driven callbacks in Node.js:
-```
+```js
 var fs = aryn.drive(require('fs'))
 
 aryn.run(function*(){
@@ -352,4 +352,3 @@ Advantages:
 1. `while(true)` boilerplate removal.
 2. Restarts once terminated.
 3. Restarts when fails.
-
