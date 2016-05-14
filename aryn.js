@@ -21,17 +21,16 @@ function schedule(fn, time) {
     }
 }
 
-
-function Suspender(timeout) {
-    this.id       = Suspender.num++;
+function BreakPoint(timeout) {
+    this.id       = BreakPoint.num++;
     this.runner   = null;
     this.released = false;
     this.timeout  = timeout;
 }
 
-Suspender.num = 0;
+BreakPoint.num = 0;
 
-Suspender.prototype = {
+BreakPoint.prototype = {
 
     isReleased: function() {
         return this.released;
@@ -41,7 +40,7 @@ Suspender.prototype = {
         var me = this;
 
         if (me.runner || me.isReleased()) {
-            throw 'This suspender has been already binded';
+            throw 'This break-point has been already binded';
         }
 
         me.runner = runner;
@@ -79,7 +78,7 @@ Suspender.prototype = {
     }
 }
 
-Suspender.releaseAll = function(array, withValue) {
+BreakPoint.releaseAll = function(array, withValue) {
     while (array.length) {
         array.shift().release(withValue);
     }
@@ -115,7 +114,7 @@ Runner.prototype = {
     done: indentityFn,
 
     isSuspended: function() {
-        return this.routineState.value instanceof Suspender && !this.routineState.value.isReleased();
+        return this.routineState.value instanceof BreakPoint && !this.routineState.value.isReleased();
     },
 
     run: function() {
@@ -152,7 +151,7 @@ Runner.prototype = {
         }
         
         value = me.routineState.value;
-        if (value instanceof Suspender) {
+        if (value instanceof BreakPoint) {
             this.updateState(Runner.SUSPENDED);
             value.bind(me);
             return;
@@ -220,8 +219,8 @@ function Channel(buffer, transform) {
     this.buffer             = buffer;
     this.closed             = false;
     this.data               = void 0;
-    this.senderSuspenders   = [];
-    this.receiverSuspenders = [];
+    this.senderBreakPoints   = [];
+    this.receiverBreakPoints = [];
     this.transform          = transform || indentityFn;
 }
 
@@ -235,23 +234,23 @@ Channel.prototype = {
         // is unbuffered
         if (! this.buffer) {
             if (this.data !== void 0) {
-                if (this.senderSuspenders[0]) {
-                    this.senderSuspenders.shift().release();
+                if (this.senderBreakPoints[0]) {
+                    this.senderBreakPoints.shift().release();
                 }
                 data      = this.data;
                 this.data = void 0;
                 return data;
             } else {
-                return (new Suspender()).pushToArray(this.receiverSuspenders);
+                return (new BreakPoint()).pushToArray(this.receiverBreakPoints);
             }
         }
 
         // if buffered
         if (this.buffer.isEmpty()) {
-            return (new Suspender()).pushToArray(this.receiverSuspenders);
+            return (new BreakPoint()).pushToArray(this.receiverBreakPoints);
         } else {            
-            if (this.senderSuspenders[0]) {
-                this.senderSuspenders.shift().release();
+            if (this.senderBreakPoints[0]) {
+                this.senderBreakPoints.shift().release();
             }
             return this.buffer.shift();
         }
@@ -263,37 +262,37 @@ Channel.prototype = {
         // is unbuffered
         if (! this.buffer) {
             if (this.data !== void 0) {
-                if (this.receiverSuspenders[0]) {                    
-                    this.receiverSuspenders.shift().release(this.data);
+                if (this.receiverBreakPoints[0]) {                    
+                    this.receiverBreakPoints.shift().release(this.data);
                 }
             } else {
-                if (this.receiverSuspenders[0]) {
+                if (this.receiverBreakPoints[0]) {
                     this.data = void 0;
-                    this.receiverSuspenders.shift().release(this.transform(data));
-                    return new Suspender(0);
+                    this.receiverBreakPoints.shift().release(this.transform(data));
+                    return new BreakPoint(0);
                 }
             }
             this.data = this.transform(data);
-            return (new Suspender()).pushToArray(this.senderSuspenders);
+            return (new BreakPoint()).pushToArray(this.senderBreakPoints);
         }
 
         // if buffered        
         if (! this.buffer.isFull()) {
             this.buffer.push(this.transform(data));
-            if (this.receiverSuspenders[0]) {
-                this.receiverSuspenders.shift().release(this.buffer.shift());
+            if (this.receiverBreakPoints[0]) {
+                this.receiverBreakPoints.shift().release(this.buffer.shift());
             }
         }
 
         if (this.buffer.isFull()) {
-            return (new Suspender()).pushToArray(this.senderSuspenders);
+            return (new BreakPoint()).pushToArray(this.senderBreakPoints);
         }
     },
 
     close: function() {
         this.closed           = true;
-        this.senderSuspenders = [];
-        Suspender.releaseAll(this.receiverSuspenders);
+        this.senderBreakPoints = [];
+        BreakPoint.releaseAll(this.receiverBreakPoints);
     }
 }
 
@@ -301,7 +300,7 @@ Channel.prototype = {
 function Stream(wait, transform) {
     this.id                 = Channel.num++;
     this.closed             = false;
-    this.receiverSuspenders = [];
+    this.receiverBreakPoints = [];
 
     this.wait = wait || 0;
     this.resetTimer(Date.now());
@@ -314,7 +313,7 @@ function Stream(wait, transform) {
 Stream.prototype = copy({
 
     receive: function() {
-        return (new Suspender()).pushToArray(this.receiverSuspenders);
+        return (new BreakPoint()).pushToArray(this.receiverBreakPoints);
     },
 
     send: function(data) {
@@ -328,11 +327,11 @@ Stream.prototype = copy({
         clearTimeout(this.trailingEdgeTimeout);
 
         if (remaining <= 0) {
-            Suspender.releaseAll(this.receiverSuspenders, this.transform(data));
+            BreakPoint.releaseAll(this.receiverBreakPoints, this.transform(data));
             this.resetTimer(now);
         } else {
             this.trailingEdgeTimeout = setTimeout(function() {
-                Suspender.releaseAll(me.receiverSuspenders, this.transform(data));
+                BreakPoint.releaseAll(me.receiverBreakPoints, this.transform(data));
                 me.resetTimer(Date.now());
             }, remaining);
         }
@@ -427,10 +426,10 @@ function wrap(generator, forever) {
     }
 }
 
-function toSuspender(obj) {
-    var susp;
+function toBreakPoint(obj) {
+    var breakp;
 
-    if (obj instanceof Suspender) {
+    if (obj instanceof BreakPoint) {
         return obj;
     }
 
@@ -439,15 +438,15 @@ function toSuspender(obj) {
     }
 
     if (isPromise(obj)) {
-        susp = new Suspender();
-        obj.then(function receive(v) { susp.release(v) });
-        return susp;
+        breakp = new BreakPoint();
+        obj.then(function receive(v) { breakp.release(v) });
+        return breakp;
     }
 
     if (obj instanceof Runner) {
-        susp = new Suspender();
-        obj.done = function receive(v) { susp.release(v) }
-        return susp;
+        breakp = new BreakPoint();
+        obj.done = function receive(v) { breakp.release(v) }
+        return breakp;
     }
 }
 
@@ -455,19 +454,19 @@ function driveFn(fn, ctx) {
     return function driven() {
         var
         args = slice.call(arguments),
-        susp = new Suspender();
+        breakp = new BreakPoint();
 
         args.push(function(err, value) {
             if (err) {
-                susp.throw(err);
+                breakp.throw(err);
             } else {
-                susp.release(value);
+                breakp.release(value);
             }
         });
 
         fn.apply(ctx || this, args);
 
-        return susp;
+        return breakp;
     }
 }
 
@@ -499,8 +498,8 @@ var API = {
         return wrap(gen, true).apply(this, args);
     },
 
-    suspend: function suspend(t) {
-        return new Suspender(t);
+    timeout: function timeout(t) {
+        return new BreakPoint(t);
     },
 
     chan: function chan(size, transform) {
@@ -536,9 +535,9 @@ var API = {
     },
 
     receive: function receive(obj) {
-        var susp = toSuspender(obj);
-        if (susp !== void 0) {
-            return susp;
+        var breakp = toBreakPoint(obj);
+        if  breakp !== void 0) {
+            return breakp;
         } else {
             throw 'invalid object to receive from';
         }
@@ -607,7 +606,7 @@ global.aryn = {
     copy               : copy,
     eventFunctionNames : eventFunctionNames,
 
-    Suspender          : Suspender,
+    BreakPoint         : BreakPoint,
     Runner             : Runner,
     Channel            : Channel,
     Stream             : Stream,
