@@ -2,7 +2,7 @@
 
 Unifying solution to tame JavaScript asynchronicity.
 
-JavaScript asynchronicity has been an issue to deal with since years ago, techniques such as callbacks, event-driven, and Promises has made the web development easier, but asynchronous code still looks asynchronous. Aryn is a thin library based on generators which ensures your asynchonous code looks synchonous.
+JavaScript asynchronicity is an amazing feature and an issue to deal with since years ago with the help of callbacks, event-driven, and Promises. Aryn is a thin library based on generators which ensures your asynchonous code looks a synchonous flow.
 
 Example in Node.js:
 ```js
@@ -14,7 +14,7 @@ aryn.run(function*(){
 })
 ```
 
-In ~14Kb (unminified and uncompressed) Aryn makes possible to consume previous paradigms to take advantage of the huge JavaScript ecosystem. It also brings CSP (Communicating Sequential Processes) to JavaScript as a programming idiom.
+In ~14Kb (unminified and uncompressed) Aryn makes possible to use libraries based on most used techniques such as callbacks, events, and Promises, to take advantage of the huge JavaScript ecosystem. It also brings CSP (Communicating Sequential Processes) to the JavaScript world.
 
 Examples of how Aryn allows you to reuse Prmise-based libraries such as jQuery:
 
