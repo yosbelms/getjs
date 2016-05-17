@@ -487,23 +487,27 @@ function arrToBreakPoint(arr) {
 }
 
 function driveFn(fn, ctx) {
-    return function driven() {
-        var
-        args = slice.call(arguments),
-        breakp = new BreakPoint();
+    if (!fn.__drivenFn) {
+        fn.__drivenFn = function drivenFn() {
+            var
+            args = slice.call(arguments),
+            breakp = new BreakPoint();
 
-        args.push(function(err, value) {
-            if (err) {
-                breakp.throw(err);
-            } else {
-                breakp.release(value);
-            }
-        });
+            args.push(function(err, value) {
+                if (err) {
+                    breakp.throw(err);
+                } else {
+                    breakp.release(value);
+                }
+            });
 
-        fn.apply(ctx || this, args);
+            fn.apply(ctx || this, args);
 
-        return breakp;
+            return breakp;
+        }
     }
+
+    return fn.__drivenFn;
 }
 
 var eventFunctionNames = [
