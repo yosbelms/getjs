@@ -23,7 +23,7 @@ function schedule(fn, time) {
 
 function BreakPoint(timeout) {
     this.id       = BreakPoint.num++;
-    this.runner   = null;
+    this.process  = null;
     this.released = false;
     this.timeout  = timeout;
 }
@@ -36,14 +36,14 @@ BreakPoint.prototype = {
         return this.released;
     },
 
-    bind: function(runner) {
+    bind: function(process) {
         var me = this;
 
-        if (me.runner || me.isReleased()) {
+        if (me.process || me.isReleased()) {
             throw 'This break-point has been already binded';
         }
 
-        me.runner = runner;
+        me.process = process;
 
         if (!isNaN(me.timeout)) {
             schedule(function(){ me.release() }, me.timeout);
@@ -51,24 +51,24 @@ BreakPoint.prototype = {
     },
 
     release: function(withValue) {
-        var runner;
+        var process;
 
-        if (this.runner) {            
-            this.released  = true;
-            runner         = this.runner;
-            this.runner    = null;
-            schedule(function(){ runner.runNext(withValue) })
+        if (this.process) {
+            this.released = true;
+            process       = this.process;
+            this.process  = null;
+            schedule(function(){ process.runNext(withValue) })
         }
     },
 
     throw: function(e) {
-        var runner;
+        var process;
 
-        if (this.runner) {
+        if (this.process) {
             this.released  = true;
-            runner         = this.runner;
-            this.runner.routine.throw(e);
-            this.runner    = null;
+            process        = this.process;
+            this.process.routine.throw(e);
+            this.process   = null;
         }
     },
 
@@ -84,24 +84,24 @@ BreakPoint.releaseAll = function(array, withValue) {
     }
 }
 
-// Runner
-function Runner(generator) {
-    this.id           = Runner.num++;
+// Process
+function Process(generator) {
+    this.id           = Process.num++;
     this.routineState = void 0;
     this.generator    = generator;
     this.routine      = void 0;
     this.forever      = false;
     this.args         = void 0;
-    this.updateState(Runner.SUSPENDED);
+    this.updateState(Process.SUSPENDED);
 }
 
-Runner.num       = 0;
-Runner.SUSPENDED = 0;
-Runner.RUNNING   = 1;
-Runner.DONE      = 2;
-Runner.FAIL      = 3;
+Process.num       = 0;
+Process.SUSPENDED = 0;
+Process.RUNNING   = 1;
+Process.DONE      = 2;
+Process.FAIL      = 3;
 
-Runner.prototype = {
+Process.prototype = {
 
     debug: true,
 
@@ -124,7 +124,7 @@ Runner.prototype = {
         this.routine      = this.generator.apply({}, this.args);
         
         schedule(function(){
-            me.updateState(Runner.RUNNING);
+            me.updateState(Process.RUNNING);
             me.runNext();    
         })
     },
@@ -141,7 +141,7 @@ Runner.prototype = {
             try {
                 me.routineState = me.routine.next(withValue);
             } catch (e) {
-                this.updateState(Runner.FAIL);
+                this.updateState(Process.FAIL);
                 me.errorHandler(e);
                 if (this.forever) {
                     return me.run(this.args);
@@ -152,27 +152,27 @@ Runner.prototype = {
         
         value = me.routineState.value;
         if (value instanceof BreakPoint) {
-            this.updateState(Runner.SUSPENDED);
+            this.updateState(Process.SUSPENDED);
             value.bind(me);
             return;
         }
 
         if (! me.routineState.done) {
-            this.updateState(Runner.RUNNING);
+            this.updateState(Process.RUNNING);
             me.runNext(value);
         } else if (this.forever) {
             me.run.apply(me, this.args);
         } else {
-            this.updateState(Runner.DONE);
+            this.updateState(Process.DONE);
             this.done(value);
         }
     },
 
     fork: function() {
         var
-        runner = new Runner(this.generator);
-        runner.forever = this.forever;
-        return runner;
+        process = new Process(this.generator);
+        process.forever = this.forever;
+        return process;
     },
 
     updateState: function(state) {
@@ -215,13 +215,13 @@ Buffer.prototype = {
 }
 
 function Channel(buffer, transform) {
-    this.id                 = Channel.num++;
-    this.buffer             = buffer;
-    this.closed             = false;
-    this.data               = void 0;
+    this.id                  = Channel.num++;
+    this.buffer              = buffer;
+    this.closed              = false;
+    this.data                = void 0;
     this.senderBreakPoints   = [];
     this.receiverBreakPoints = [];
-    this.transform          = transform || indentityFn;
+    this.transform           = transform || indentityFn;
 }
 
 Channel.num = 0;
@@ -290,7 +290,7 @@ Channel.prototype = {
     },
 
     close: function() {
-        this.closed           = true;
+        this.closed            = true;
         this.senderBreakPoints = [];
         BreakPoint.releaseAll(this.receiverBreakPoints);
     }
@@ -298,8 +298,8 @@ Channel.prototype = {
 
 // Stream
 function Stream(wait, transform) {
-    this.id                 = Channel.num++;
-    this.closed             = false;
+    this.id                  = Channel.num++;
+    this.closed              = false;
     this.receiverBreakPoints = [];
 
     this.wait = wait || 0;
@@ -419,10 +419,10 @@ function filter(filter) {
 function wrap(generator, forever) {
     return function run() {
         var
-        runner = new Runner(generator);
-        runner.forever = !!forever;
-        runner.run.apply(runner, arguments);
-        return runner;
+        process = new Process(generator);
+        process.forever = !!forever;
+        process.run.apply(process, arguments);
+        return process;
     }
 }
 
@@ -443,7 +443,7 @@ function toBreakPoint(obj) {
         return breakp;
     }
 
-    if (obj instanceof Runner) {
+    if (obj instanceof Process) {
         breakp = new BreakPoint();
         obj.done = function receive(v) { breakp.release(v) }
         return breakp;
@@ -523,7 +523,7 @@ var API = {
     run: function run(gen) {
         var args = slice.call(arguments, 1);
 
-        if (gen instanceof Runner) {
+        if (gen instanceof Process) {
             return wrap(gen.generator, gen.forever).apply(this, args);
         }
         return wrap(gen, false).apply(this, slice.call(arguments, 1));
@@ -532,7 +532,7 @@ var API = {
     forever: function forever(gen) {
         var args = slice.call(arguments, 1);
 
-        if (gen instanceof Runner) {
+        if (gen instanceof Process) {
             return wrap(gen.generator, true).apply(this, args);
         }
         return wrap(gen, true).apply(this, args);
@@ -642,7 +642,7 @@ global.aryn = {
     eventFunctionNames : eventFunctionNames,
 
     BreakPoint         : BreakPoint,
-    Runner             : Runner,
+    Process            : Process,
     Channel            : Channel,
     Stream             : Stream,
 
@@ -651,7 +651,7 @@ global.aryn = {
     },
 
     debug: function debug(d) {
-        Runner.prototype.debug = !!d;
+        Process.prototype.debug = !!d;
     },
 
     module: function module(fn) {
