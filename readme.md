@@ -197,7 +197,7 @@ run(function*(){
 ```
 
 ### yield receive(channel: Channel): Object
-Receives data from a channel, Promise, or driven functions.
+Receives data from a channel, Promise, `driven` functions, or array of those mentioned before. If given an array, `receive` will resolve all in parallel.
 ```js
 var ch = chan()
 run(function*(){
