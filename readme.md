@@ -16,7 +16,7 @@ aryn.run(function*(){
 
 In ~14Kb (unminified and uncompressed) Aryn makes possible to use libraries based on most used techniques such as callbacks, events, and Promises, to take advantage of the huge JavaScript ecosystem. It also brings CSP (Communicating Sequential Processes) to the JavaScript world.
 
-Examples of how Aryn allows you to reuse Prmise-based libraries such as jQuery:
+Examples of how Aryn allows you to reuse Promise-based libraries such as jQuery:
 
 **DOM events**
 ```js
