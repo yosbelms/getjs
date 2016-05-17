@@ -448,6 +448,42 @@ function toBreakPoint(obj) {
         obj.done = function receive(v) { breakp.release(v) }
         return breakp;
     }
+
+    if (obj instanceof Array) {
+        return arrToBreakPoint(obj);
+    }
+
+    throw 'unable to convert object to BreakPoint';
+}
+
+function arrToBreakPoint(arr) {
+    var
+    i, breakp, oRelease,
+    breakpArr  = [],
+    valuesArr  = [],
+    ret        = new BreakPoint(),
+    len        = arr.length,
+    numPending = len;
+
+    for (i = 0; i < len; i++) {
+        breakp   = toBreakPoint(arr[i]);
+        oRelease = breakp.release;
+
+        breakp.release = (function(oRelease, valuesArr) {
+            return function release(value) {
+                oRelease.apply(this, arguments);
+                valuesArr.push(value);
+                numPending--;
+                if (numPending === 0) {
+                    ret.release(valuesArr);
+                }
+            }
+        })(oRelease, valuesArr);
+
+        breakpArr.push(breakp);
+    }
+
+    return ret;
 }
 
 function driveFn(fn, ctx) {
@@ -535,12 +571,7 @@ var API = {
     },
 
     receive: function receive(obj) {
-        var breakp = toBreakPoint(obj);
-        if  breakp !== void 0) {
-            return breakp;
-        } else {
-            throw 'invalid object to receive from';
-        }
+        return toBreakPoint(obj);
     },
 
     close: function close(chan) {
