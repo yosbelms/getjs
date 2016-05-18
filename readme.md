@@ -109,12 +109,12 @@ aryn.module(function(run, send, receive){
 
 > The rest of this document assumes using `aryn.global()` for all the following code snippets.
 
-## Runners
-Runners (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parameter. Aryn takes advantage of the native scheduler, that is, there is not a custom scheduler implementation. Runners along with Channels are the main pieces of the Aryn CSP approach.
+## Processes
+Processes (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parameter. Aryn takes advantage of the native scheduler, that is, there is not a custom scheduler implementation. Processes along with Channels are the main pieces of the Aryn CSP approach.
 
 
-### run(gen: GeneratorFunction, [params...]): Runner
-Creates a new runner and executes it returning a `runner` object.
+### run(gen: GeneratorFunction, [params...]): Process
+Creates a new process and executes it returning a `process` object.
 ```js
 run(function*(url){
     ...
@@ -148,9 +148,9 @@ aryn.run(function*(){
 ```
 
 ## Channels
-Channels are the central piece of CSP. They are structures used to communicate and synchronize runners, between them or with the outside world.
+Channels are the central piece of CSP. They are structures used to communicate and synchronize processes, between them or with the outside world.
 
-Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other runner receives. Once the data has been received, the sender will be unblocked and the receptor will be blocked until new data is received. Unbuffered channels are also known as _synchronic channels_. When some data is sent to a buffered channel it only blocks the runners if the buffer is full. The receiver only blocks if there is no data in the buffer. The behavior is exactly like in Go language.
+Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other process receives. Once the data has been received, the sender will be unblocked and the receptor will be blocked until new data is received. Unbuffered channels are also known as _synchronic channels_. When some data is sent to a buffered channel it only blocks the processes if the buffer is full. The receiver only blocks if there is no data in the buffer. The behavior is exactly like in Go language.
 
 A stream is an unbuffered (but not synchronic) channel which satisfies certain requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it guarantees to deliver data to all receivers -multicast- and can be throttled.
 
@@ -188,7 +188,7 @@ var tstm = stream(100) // stream throttled with a 100 msecs
 ```
 
 ### yield? send(channel: Channel, data: Object)
-Sends data to a channel. Always use it preceded by the `yield` keyword, unless you are using it from outside of a runner.
+Sends data to a channel. Always use it preceded by the `yield` keyword, unless you are using it from outside of a process.
 ```js
 var ch = chan()
 run(function*(){
@@ -208,7 +208,7 @@ run(function*(){
 
 Example using jQuery promises implementation:
 ```js
-var player = yield receive(jQuery.get('http://api.com/player/1'))
+var player = yield receive($.get('http://api.com/player/1'))
 console.log(player)
 ```
 
@@ -222,6 +222,17 @@ aryn.run(function*(){
 })
 ```
 
+Example using parallelism:
+```js
+var result = yield receive([
+    $.get('http://api.com/books'),
+    $.get('http://api.com/authors')
+]);
+
+var books   = result[0];
+var authors = result[1];
+```
+
 ### close(channel: Channel)
 Closes a channel.
 ```js
@@ -231,7 +242,7 @@ close(ch)
 
 ## Utilities
 ### yield timeout(time: Number)
-Stops a runner for the specified time (in milliseconds).
+Stops a process for the specified time (in milliseconds).
 ```js
 run(function*(){
     yield timeout(100) // pause it 100 milliseconds
@@ -240,10 +251,10 @@ run(function*(){
 > Notice: The `yield` keyword is needed
 
 ### debug(debug? Boolean)
-Sets whether to make runners fails loudly or not. The Aryn runners fail just like a normal JavaScript function by default, which is good for development but not for production. If you want runners to fail silently -á la Erlang- just turn off the debug mode:
+Sets whether to make processes fails loudly or not. The Aryn processes fail just like a normal JavaScript function by default, which is good for development but not for production. If you want processes to fail silently -á la Erlang- just turn off the debug mode:
 
 ```js
-// make runners fail silently
+// make processes fail silently
 aryn.debug(false)
 ```
 
@@ -325,8 +336,8 @@ run(function*() {
 })
 ```
 
-### forever(gen: GeneratorFunction, params?...): Runner
-Spawns a new runner but once the runner ends or fails it is automatically restarted. It is a convenient way to persistently execute code blocks, avoiding `while(true)` boilerplate with additional fail-over.
+### forever(gen: GeneratorFunction, params?...): Process
+Spawns a new process but once the process ends or fails it is automatically restarted. It is a convenient way to persistently execute code blocks, avoiding `while(true)` boilerplate with additional fail-over.
 
 Example with using `run`:
 ```js
