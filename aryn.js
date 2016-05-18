@@ -373,6 +373,14 @@ function isPromise(pr) {
     return pr && isFunction(pr.then);
 }
 
+function isObject(obj) {
+    return Object == obj.constructor;
+}
+
+function isArray(arr) {
+    return Array.isArray(arr);
+}
+
 function isGeneratorFunction(obj) {
     var
     constr,
@@ -449,8 +457,12 @@ function toBreakPoint(obj) {
         return breakp;
     }
 
-    if (obj instanceof Array) {
+    if (isArray(obj)) {
         return arrToBreakPoint(obj);
+    }
+
+    if (isObject(obj)) {
+        return objToBreakPoint(obj);
     }
 
     throw 'unable to convert object to BreakPoint';
@@ -459,7 +471,6 @@ function toBreakPoint(obj) {
 function arrToBreakPoint(arr) {
     var
     i, breakp, oRelease,
-    breakpArr  = [],
     valuesArr  = [],
     ret        = new BreakPoint(),
     len        = arr.length,
@@ -479,8 +490,35 @@ function arrToBreakPoint(arr) {
                 }
             }
         })(oRelease, valuesArr);
+    }
 
-        breakpArr.push(breakp);
+    return ret;
+}
+
+function objToBreakPoint(obj) {
+    var
+    i, name, breakp, oRelease,
+    valuesObj  = {},
+    keys       = Object.keys(obj),
+    ret        = new BreakPoint(),
+    len        = keys.length,
+    numPending = len;
+
+    for (i = 0; i < len; i++) {
+        name     = keys[i];
+        breakp   = toBreakPoint(obj[name]);
+        oRelease = breakp.release;
+
+        breakp.release = (function(oRelease, valuesObj, name) {
+            return function release(value) {
+                oRelease.apply(this, arguments);
+                valuesObj[name] = value;
+                numPending--;
+                if (numPending === 0) {
+                    ret.release(valuesObj);
+                }
+            }
+        })(oRelease, valuesObj, name);
     }
 
     return ret;

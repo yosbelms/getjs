@@ -197,7 +197,7 @@ run(function*(){
 ```
 
 ### yield receive(channel: Channel): Object
-Receives data from a channel, Promise, `driven` functions, or array of those mentioned before. If given an array, `receive` will resolve all in parallel.
+Receives data from a channel, Promise, `driven` functions, or array of those mentioned before. If given an array or object, `receive` will resolve all in parallel.
 ```js
 var ch = chan()
 run(function*(){
@@ -222,7 +222,7 @@ aryn.run(function*(){
 })
 ```
 
-Example using parallelism:
+Example using parallel resolutions:
 ```js
 var result = yield receive([
     $.get('http://api.com/books'),
@@ -231,6 +231,16 @@ var result = yield receive([
 
 var books   = result[0];
 var authors = result[1];
+
+// or even better
+
+var result = yield receive({
+    books:   $.get('http://api.com/books'),
+    authors: $.get('http://api.com/authors')
+});
+
+var books   = result.books;
+var authors = result.authors;
 ```
 
 ### close(channel: Channel)
