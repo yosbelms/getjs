@@ -558,6 +558,17 @@ var API = {
 
     filter: filter,
 
+    def: function(gen) {
+        var
+        process = new Process(gen),
+        breakp  = toBreakPoint(process);
+
+        return function run() {
+            process.run.apply(process, arguments);
+            return breakp;
+        }
+    },
+
     run: function run(gen) {
         var args = slice.call(arguments, 1);
 
