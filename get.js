@@ -22,53 +22,66 @@ function schedule(fn, time) {
 }
 
 function BreakPoint(timeout) {
-    this.id       = BreakPoint.num++;
-    this.process  = null;
-    this.released = false;
-    this.timeout  = timeout;
+    this.process       = void 0;
+    this.resumed       = false;
+    this.timeout       = timeout;
+    this.doneListeners = void 0;
 }
-
-BreakPoint.num = 0;
 
 BreakPoint.prototype = {
 
-    isReleased: function() {
-        return this.released;
+    isResumed: function() {
+        return this.resumed;
     },
 
     bind: function(process) {
         var me = this;
 
-        if (me.process || me.isReleased()) {
+        if (me.process || me.isResumed()) {
             throw 'This break-point has been already binded';
         }
 
         me.process = process;
 
         if (!isNaN(me.timeout)) {
-            schedule(function(){ me.release() }, me.timeout);
+            schedule(function(){ me.resume() }, me.timeout);
         }
     },
 
-    release: function(withValue) {
+    resume: function(value) {
         var process;
 
         if (this.process) {
-            this.released = true;
-            process       = this.process;
-            this.process  = null;
-            schedule(function(){ process.runNext(withValue) })
+            this.resumed = true;
+            process      = this.process;
+            this.process = null;
+            schedule(function(){ process.runNext(value) })
+            this.fireDone(value);
         }
     },
 
-    throw: function(e) {
+    throw: function(err) {
         var process;
 
         if (this.process) {
-            this.released  = true;
-            process        = this.process;
-            this.process.routine.throw(e);
-            this.process   = null;
+            this.resumed = true;
+            process      = this.process;
+            this.process.routine.throw(err);
+            this.process = null;
+            this.fireDone(void 0, err);
+        }
+    },
+
+    done: function(fn) {
+        if (! this.doneListeners) { this.doneListeners = [] }
+        this.doneListeners.push(fn);
+    },
+
+    fireDone: function(val, err) {
+        if (this.doneListeners) {
+            this.doneListeners.forEach(function(listener){
+                listener(val, err);
+            });
         }
     },
 
@@ -78,120 +91,72 @@ BreakPoint.prototype = {
     }
 }
 
-BreakPoint.releaseAll = function(array, withValue) {
+BreakPoint.resumeAll = function(array, withValue) {
     while (array.length) {
-        array.shift().release(withValue);
+        array.shift().resume(withValue);
     }
 }
 
 // Process
-function Process(generator) {
-    this.id           = Process.num++;
-    this.routineState = void 0;
-    this.generator    = generator;
-    this.routine      = void 0;
-    this.forever      = false;
-    this.args         = void 0;
-    this.updateState(Process.SUSPENDED);
+function Process(generator, scope) {
+    this.scope     = scope || {};
+    this.state     = { done: false, value: void 0 };
+    this.generator = generator;
+    this.routine   = void 0;
+    this.args      = void 0;
 }
-
-Process.num       = 0;
-Process.SUSPENDED = 0;
-Process.RUNNING   = 1;
-Process.DONE      = 2;
-Process.FAIL      = 3;
 
 Process.prototype = {
 
-    debug: true,
+    throws: false,
 
-    errorHandler: function(){ },
-
-    catch: function(errorHandler) {
-        this.errorHandler = errorHandler;
-    },
-
-    done: indentityFn,
+    done : indentityFn,
+    catch: indentityFn,
 
     isSuspended: function() {
-        return this.routineState.value instanceof BreakPoint && !this.routineState.value.isReleased();
+        return this.state.value instanceof BreakPoint && !this.state.value.isResumed();
     },
 
     run: function() {
         var me = this;
-        this.args         = arguments;
-        this.routineState = { done: false, value: void 0 };
-        this.routine      = this.generator.apply({}, this.args);
-        
-        schedule(function(){
-            me.updateState(Process.RUNNING);
-            me.runNext();    
-        })
+        this.routine = this.generator.apply(this.scope, arguments);
+        schedule(function(){ me.runNext() });
     },
 
     runNext: function(withValue) {
-        var value,
-        me = this;
+        var value;
 
-        if (me.isSuspended()) { return }
+        if (this.isSuspended()) { return }
 
-        if (me.debug) {
-            me.routineState = me.routine.next(withValue);    
+        if (this.throws) {
+            this.state = this.routine.next(withValue);
         } else {
             try {
-                me.routineState = me.routine.next(withValue);
+                this.state = this.routine.next(withValue);
             } catch (e) {
-                this.updateState(Process.FAIL);
-                me.errorHandler(e);
-                if (this.forever) {
-                    return me.run(this.args);
-                }
+                this.catch(e);
                 return;
             }
         }
-        
-        value = me.routineState.value;
-        if (value instanceof BreakPoint) {
-            this.updateState(Process.SUSPENDED);
-            value.bind(me);
+
+        value = this.state.value;
+        if (isBreakPoint(value)) {
+            value.bind(this);
             return;
         }
 
-        if (! me.routineState.done) {
-            this.updateState(Process.RUNNING);
-            me.runNext(value);
-        } else if (this.forever) {
-            me.run.apply(me, this.args);
+        if (! this.state.done) {
+            this.runNext(value);
         } else {
-            this.updateState(Process.DONE);
             this.done(value);
         }
-    },
-
-    fork: function() {
-        var
-        process = new Process(this.generator);
-        process.forever = this.forever;
-        return process;
-    },
-
-    updateState: function(state) {
-        if (this.state !== state) {
-            this.state = state;
-            return true;
-        }
-        return false;
     }
 }
 
-
 function Buffer(size) {
-    this.id    = Buffer.num++;
     this.size  = isNaN(size) ? 1 : size;
     this.array = [];
 }
-
-Buffer.num = 0;
 
 Buffer.prototype = {
 
@@ -215,7 +180,6 @@ Buffer.prototype = {
 }
 
 function Channel(buffer, transform) {
-    this.id                  = Channel.num++;
     this.buffer              = buffer;
     this.closed              = false;
     this.data                = void 0;
@@ -223,8 +187,6 @@ function Channel(buffer, transform) {
     this.receiverBreakPoints = [];
     this.transform           = transform || indentityFn;
 }
-
-Channel.num = 0;
 
 Channel.prototype = {
 
@@ -235,7 +197,7 @@ Channel.prototype = {
         if (! this.buffer) {
             if (this.data !== void 0) {
                 if (this.senderBreakPoints[0]) {
-                    this.senderBreakPoints.shift().release();
+                    this.senderBreakPoints.shift().resume();
                 }
                 data      = this.data;
                 this.data = void 0;
@@ -248,9 +210,9 @@ Channel.prototype = {
         // if buffered
         if (this.buffer.isEmpty()) {
             return (new BreakPoint()).pushToArray(this.receiverBreakPoints);
-        } else {            
+        } else {
             if (this.senderBreakPoints[0]) {
-                this.senderBreakPoints.shift().release();
+                this.senderBreakPoints.shift().resume();
             }
             return this.buffer.shift();
         }
@@ -262,13 +224,13 @@ Channel.prototype = {
         // is unbuffered
         if (! this.buffer) {
             if (this.data !== void 0) {
-                if (this.receiverBreakPoints[0]) {                    
-                    this.receiverBreakPoints.shift().release(this.data);
+                if (this.receiverBreakPoints[0]) {
+                    this.receiverBreakPoints.shift().resume(this.data);
                 }
             } else {
                 if (this.receiverBreakPoints[0]) {
                     this.data = void 0;
-                    this.receiverBreakPoints.shift().release(this.transform(data));
+                    this.receiverBreakPoints.shift().resume(this.transform(data));
                     return new BreakPoint(0);
                 }
             }
@@ -276,11 +238,11 @@ Channel.prototype = {
             return (new BreakPoint()).pushToArray(this.senderBreakPoints);
         }
 
-        // if buffered        
+        // if buffered
         if (! this.buffer.isFull()) {
             this.buffer.push(this.transform(data));
             if (this.receiverBreakPoints[0]) {
-                this.receiverBreakPoints.shift().release(this.buffer.shift());
+                this.receiverBreakPoints.shift().resume(this.buffer.shift());
             }
         }
 
@@ -292,22 +254,20 @@ Channel.prototype = {
     close: function() {
         this.closed            = true;
         this.senderBreakPoints = [];
-        BreakPoint.releaseAll(this.receiverBreakPoints);
+        BreakPoint.resumeAll(this.receiverBreakPoints);
     }
 }
 
 // Stream
 function Stream(wait, transform) {
-    this.id                  = Channel.num++;
     this.closed              = false;
     this.receiverBreakPoints = [];
-
-    this.wait = wait || 0;
-    this.resetTimer(Date.now());
-    this.releasingTime = 0;
-
     this.trailingEdgeTimeout = null;
-    this.transform = transform || indentityFn;
+    this.releasingTime       = 0;
+    this.wait                = wait || 0;
+    this.transform           = transform || indentityFn;
+
+    this.resetTimer(Date.now());
 }
 
 Stream.prototype = copy({
@@ -327,11 +287,11 @@ Stream.prototype = copy({
         clearTimeout(this.trailingEdgeTimeout);
 
         if (remaining <= 0) {
-            BreakPoint.releaseAll(this.receiverBreakPoints, this.transform(data));
+            BreakPoint.resumeAll(this.receiverBreakPoints, this.transform(data));
             this.resetTimer(now);
         } else {
             this.trailingEdgeTimeout = setTimeout(function() {
-                BreakPoint.releaseAll(me.receiverBreakPoints, this.transform(data));
+                BreakPoint.resumeAll(me.receiverBreakPoints, this.transform(data));
                 me.resetTimer(Date.now());
             }, remaining);
         }
@@ -345,7 +305,7 @@ Stream.prototype = copy({
 }, Object.create(Channel.prototype));
 
 
-// aryn lib
+// go lib
 function copy(from, to, own) {
     for (var name in from) {
         if (own === true) {
@@ -357,7 +317,6 @@ function copy(from, to, own) {
             to[name] = from[name];
         }
     }
-
     return to;
 }
 
@@ -374,11 +333,15 @@ function isPromise(pr) {
 }
 
 function isObject(obj) {
-    return Object == obj.constructor;
+    return obj && Object == obj.constructor;
 }
 
 function isArray(arr) {
     return Array.isArray(arr);
+}
+
+function isBreakPoint(obj) {
+    return obj instanceof BreakPoint;
 }
 
 function isGeneratorFunction(obj) {
@@ -424,20 +387,10 @@ function filter(filter) {
     }
 }
 
-function wrap(generator, forever) {
-    return function run() {
-        var
-        process = new Process(generator);
-        process.forever = !!forever;
-        process.run.apply(process, arguments);
-        return process;
-    }
-}
-
 function toBreakPoint(obj) {
     var breakp;
 
-    if (obj instanceof BreakPoint) {
+    if (isBreakPoint(obj)) {
         return obj;
     }
 
@@ -447,13 +400,13 @@ function toBreakPoint(obj) {
 
     if (isPromise(obj)) {
         breakp = new BreakPoint();
-        obj.then(function receive(v) { breakp.release(v) });
+        obj.then(function receive(v) { breakp.resume(v) });
         return breakp;
     }
 
     if (obj instanceof Process) {
-        breakp = new BreakPoint();
-        obj.done = function receive(v) { breakp.release(v) }
+        breakp   = new BreakPoint();
+        obj.done = function receive(v) { breakp.resume(v) }
         return breakp;
     }
 
@@ -464,32 +417,30 @@ function toBreakPoint(obj) {
     if (isObject(obj)) {
         return objToBreakPoint(obj);
     }
-
-    throw 'unable to convert object to BreakPoint';
 }
 
 function arrToBreakPoint(arr) {
     var
-    i, breakp, oRelease,
+    i, breakp, oResume,
     valuesArr  = [],
     ret        = new BreakPoint(),
     len        = arr.length,
     numPending = len;
 
     for (i = 0; i < len; i++) {
-        breakp   = toBreakPoint(arr[i]);
-        oRelease = breakp.release;
+        breakp  = toBreakPoint(arr[i]);
+        oResume = breakp.resume;
 
-        breakp.release = (function(oRelease, valuesArr) {
-            return function release(value) {
-                oRelease.apply(this, arguments);
+        breakp.resume = (function(oResume, valuesArr) {
+            return function resume(value) {
+                oResume.apply(this, arguments);
                 valuesArr.push(value);
                 numPending--;
                 if (numPending === 0) {
-                    ret.release(valuesArr);
+                    ret.resume(valuesArr);
                 }
             }
-        })(oRelease, valuesArr);
+        })(oResume, valuesArr);
     }
 
     return ret;
@@ -497,7 +448,7 @@ function arrToBreakPoint(arr) {
 
 function objToBreakPoint(obj) {
     var
-    i, name, breakp, oRelease,
+    i, name, breakp, oResume,
     valuesObj  = {},
     keys       = Object.keys(obj),
     ret        = new BreakPoint(),
@@ -505,20 +456,20 @@ function objToBreakPoint(obj) {
     numPending = len;
 
     for (i = 0; i < len; i++) {
-        name     = keys[i];
-        breakp   = toBreakPoint(obj[name]);
-        oRelease = breakp.release;
+        name    = keys[i];
+        breakp  = toBreakPoint(obj[name]);
+        oResume = breakp.resume;
 
-        breakp.release = (function(oRelease, valuesObj, name) {
-            return function release(value) {
-                oRelease.apply(this, arguments);
+        breakp.resume = (function(oResume, valuesObj, name) {
+            return function resume(value) {
+                oResume.apply(this, arguments);
                 valuesObj[name] = value;
                 numPending--;
                 if (numPending === 0) {
-                    ret.release(valuesObj);
+                    ret.resume(valuesObj);
                 }
             }
-        })(oRelease, valuesObj, name);
+        })(oResume, valuesObj, name);
     }
 
     return ret;
@@ -535,7 +486,7 @@ function driveFn(fn, ctx) {
                 if (err) {
                     breakp.throw(err);
                 } else {
-                    breakp.release(value);
+                    breakp.resume(value);
                 }
             });
 
@@ -554,53 +505,63 @@ var eventFunctionNames = [
     'on',
 ];
 
-var API = {
 
-    filter: filter,
-
-    def: function(gen) {
+function wrap(gen) {
+    return function process() {
         var
-        process = new Process(gen),
+        process = new Process(gen, this),
         breakp  = toBreakPoint(process);
 
-        return function run() {
-            process.run.apply(process, arguments);
-            return breakp;
-        }
+        process.done  = function(val){ breakp.fireDone(val) }
+        process.catch = function(err){ breakp.fireDone(void 0, err) }
+
+        process.run.apply(process, arguments);
+        return breakp;
+    }
+}
+
+function get(obj) {
+    if (isGeneratorFunction(obj)) { return wrap(obj) }
+    return toBreakPoint(obj);
+}
+
+copy({
+    get                : get,
+    go                 : wrap,
+    copy               : copy,
+    eventFunctionNames : eventFunctionNames,
+
+    BreakPoint         : BreakPoint,
+    Process            : Process,
+    Channel            : Channel,
+    Stream             : Stream,
+
+    global: function _global() {
+        copy(get, global, true);
     },
 
-    run: function run(gen) {
-        var args = slice.call(arguments, 1);
-
-        if (gen instanceof Process) {
-            return wrap(gen.generator, gen.forever).apply(this, args);
-        }
-        return wrap(gen, false).apply(this, slice.call(arguments, 1));
+    throws: function throws(d) {
+        Process.prototype.throws = !!d;
     },
 
-    forever: function forever(gen) {
-        var args = slice.call(arguments, 1);
+    // API
 
-        if (gen instanceof Process) {
-            return wrap(gen.generator, true).apply(this, args);
-        }
-        return wrap(gen, true).apply(this, args);
-    },
+    filter: filter,
 
     timeout: function timeout(t) {
         return new BreakPoint(t);
     },
 
     chan: function chan(size, transform) {
-        var ch;
         if (size instanceof Buffer) {
-            ch = new Channel(size, transform);
-        } else if (isNaN(size)) {
-            ch = new Channel(null, transform);
-        } else {
-            ch = new Channel(new Buffer(size), transform);
+            return new Channel(size, transform);
         }
-        return ch;
+
+        if (isNaN(size)) {
+            return new Channel(null, transform);
+        }
+
+        return new Channel(new Buffer(size), transform);
     },
 
     stream: function stream(wait, transform) {
@@ -608,7 +569,7 @@ var API = {
     },
 
     sender: function sender(chan, filtr) {
-        if (! isChannel(cha)) { throw 'invalid channel' }            
+        if (! isChannel(cha)) { throw 'invalid channel' }
         filtr = filter(filtr || 0);
         return function sender() {
             chan.send(filtr(arguments));
@@ -621,10 +582,6 @@ var API = {
         } else {
             throw 'invalid channel';
         }
-    },
-
-    receive: function receive(obj) {
-        return toBreakPoint(obj);
     },
 
     close: function close(chan) {
@@ -645,10 +602,10 @@ var API = {
         if (! obj) { throw 'invalid object' }
 
         for (i = 0; i < len; i++) {
-            name = eventFunctionNames[i];                
+            name = eventFunctionNames[i];
             if (isFunction(obj[name])) {
                 obj[name](eventName, function EventListener() {
-                    aryn.send(chan, filtr(arguments));
+                    go.send(chan, filtr(arguments));
                 });
                 isRegistered = true;
                 break;
@@ -673,65 +630,23 @@ var API = {
         if (isFunction(obj)) {
             return driveFn(obj, ctx);
         } else {
-            newObj = {};            
-            for (name in obj) {                    
-                if (obj.hasOwnProperty(name) && !syncPrefix.test(name)) {
-                    prop = obj[name];
-                    newObj[name] = isFunction(prop) ? driveFn(prop, ctx || obj) : prop;
-                }
+            newObj = {};
+            for (name in obj) {
+                if (syncPrefix.test(name)) { continue }
+                prop = obj[name];
+                newObj[name] = isFunction(prop) ? driveFn(prop, ctx || obj) : prop;
             }
             return newObj;
         }
     }
-};
 
-global.aryn = {
-    API                : API,
-    copy               : copy,
-    eventFunctionNames : eventFunctionNames,
+}, get);
 
-    BreakPoint         : BreakPoint,
-    Process            : Process,
-    Channel            : Channel,
-    Stream             : Stream,
 
-    global: function _global() {
-        copy(API, global, true);
-    },
-
-    debug: function debug(d) {
-        Process.prototype.debug = !!d;
-    },
-
-    module: function module(fn) {
-        if (! isFunction(fn)) { throw 'module must be a function' }
-
-        var
-        i, parsed,
-        params, param,
-        args = [],
-        str  = String(fn);
-
-        parsed = /\(([\w,\s]+)\)/.exec(str);
-        if (parsed) {
-            params = parsed[1].replace(/\s+/g, '').split(',');
-        }
-
-        if (params) {
-            for (i = 0; i < params.length; i++) {
-                param = params[i];
-                if (API.hasOwnProperty(param)) {
-                    args.push(API[param]);
-                } else {
-                    args.push(void 0);
-                }
-            }
-        }
-
-        fn.apply({}, args);
-    }
+if (typeof exports !== 'undefined' && typeof require === 'function') {
+    module.exports = get;
+} else {
+    global.get = get;
 }
-
-copy(API, global.aryn);
 
 })(global_);

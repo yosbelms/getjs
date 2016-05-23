@@ -1,69 +1,56 @@
-#Aryn
+#Getjs
 
-Unifying solution to tame JavaScript asynchronicity.
+Unifying library to make sequential your asynchonous code.
 
-JavaScript asynchronicity is an amazing feature and an issue to deal with since years ago with the help of callbacks, event-driven, and Promises. Aryn is a thin library based on generators which makes sequential your asynchonous code.
+**Getjs** is a library based on generators workflow to free one of callbacks and Promises making sequential your asynchonous code. The Getjs key feature is the interoperation with thirth-party libraries, so, it is possible to consume callbacks, event-driven, or Promise based APIs.
 
 Example in Node.js:
 ```js
-var fs = aryn.drive(require('fs'))
+var fs = get.drive(require('fs'))
 
-aryn.run(function*(){
-    var stat = aryn.receive(fs.stat(__filename))
+get(function*(){
+    var stat = get(fs.stat(__filename))
     console.log(stat)
-})
+})()
 ```
 
-In ~14Kb (unminified and uncompressed) Aryn makes possible to take advantage of libraries based on most used techniques such as callbacks, events, and Promises, to take advantage of the huge JavaScript ecosystem. It also brings CSP (Communicating Sequential Processes) to the JavaScript world.
+In ~14Kb (unminified and uncompressed) Getjs makes possible to take advantage of libraries based on most used techniques such as callbacks, events, and Promises, to take advantage of the huge JavaScript ecosystem including the whole Node.js API. It also brings CSP (Communicating Sequential Processes) to the JavaScript world.
 
-Examples of how Aryn allows you to reuse Promise-based libraries such as jQuery:
+Examples of how Getjs allows you to reuse Promise-based libraries, for example, jQuery:
 
 **DOM events**
 ```js
-aryn.global()
+get.global()
 
-// listening events
+// converting events to stream
 var clickStrm = listen($('#button1'), 'click', stream())
 
-run(function*(){
+get(function*(){
     while(true) {
-        console.log(yield receive(clickStrm))
+        console.log(yield get(clickStrm))
     }
-})
+})()
 ```
 
 **AJAX**
 ```js
-aryn.global()
+get.global()
 
-run(function*(){
+get(function*(){
     // http request
-    var json = yield receive($.get('http://github.com'))
+    var json = yield get($.get('http://github.com'))
     console.log(json)
-})
+})()
 ```
 
-Example that shows CSP with Aryn. Pingpong (ported from [Go](http://talks.golang.org/2013/advconc.slide#6))
+Example that shows CSP with Getjs. Pingpong (ported from [Go](http://talks.golang.org/2013/advconc.slide#6))
 ```js
-aryn.global()
+get.global()
 
-run(function*() {
-    var
-    table = chan()
-
-    player('A', table)
-    player('B', table)
-    
-    yield send(table, {hits: 0})
-    yield timeout(1000)
-
-    close(table)
-})
-
-function player(name, table) { run(function*() {
+var player = get(function*(name, table) {
     var ball;
     while (true) {
-        ball = yield receive(table)
+        ball = yield get(table)
         if (table.closed) {
             console.log('Table is gone')
             return
@@ -77,13 +64,25 @@ function player(name, table) { run(function*() {
             yield send(table, ball)
         }
     }
-})}
+})
 
+get(function*() {
+    var
+    table = chan()
+
+    player('A', table)
+    player('B', table)
+
+    yield send(table, {hits: 0})
+    yield timeout(1000)
+
+    close(table)
+})()
 ```
 
-## With Aryn
+## With Getjs
 
-* You will be able to take advantage of the JavaScript asynchronicity by writing synchronic code.
+* You will be able to take advantage of the JavaScript asynchronicity by writing sequential code.
 * You will be able to reuse any Promise-based library avoiding `then-callback` boilerplate.
 * You will use the whole Node.js asynchonous API without the annoying `callback-hell`.
 * You can compose your application of lightweight proccesses which comunicate by passing messages through channels.
@@ -91,60 +90,58 @@ function player(name, table) { run(function*() {
 
 ## API
 
-The API is published under the `aryn.` namespace, however it is possible to use it globally by using the `aryn.global()` function. There is also a modular mode using Angular-like injection.
+The API is published under the `get.` namespace, however it is possible to use it globally by using the `get.global()` function.
 
 ```js
 // namespaced
-aryn.run()
+get()
 
 // using the global scope
-aryn.global()
-run(...)
-
-// modular
-aryn.module(function(run, send, receive){
-    
-})
+get.global()
+get(...)
 ```
 
-> The rest of this document assumes using `aryn.global()` for all the following code snippets.
+> The rest of this document assumes using `get.global()` for all the following code snippets.
 
 ## Processes
-Processes (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parameter. Aryn takes advantage of the native scheduler, that is, there is not a custom scheduler implementation. Processes along with Channels are the main pieces of the Aryn CSP approach.
+Processes (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parameter. Getjs takes advantage of the native scheduler, that is, there is not a custom scheduler implementation. Processes along with Channels are the main pieces of the Getjs CSP approach.
 
 
-### run(gen: GeneratorFunction, [params...]): Process
-Creates a new process and executes it returning a `process` object.
+### go(gen: GeneratorFunction): Process
+Creates a new process and executes it returning a function.
 ```js
-run(function*(url){
+var task = get.go(function*(url){
     ...
-}, 'http://github.com')
+})
+
+task('http://github.com')
 ```
+> `get(...)` is a shorthand due to the `get` function is overloaded.
 
 ## Driven Callbacks
-Driven callbacks are callbacks converted to the break-point underlaying Aryns architecture, it's the same idea behind **promisifyAll** in Bluebird library.
+Driven callbacks are callbacks converted to the break-point underlaying Getjs architecture, it's the same idea behind **promisifyAll** in Bluebird library.
 
 ### drive(object?: Function|Object, ctx?: Object): Object|Function
-Converts a callback-based function or an object containing callback-based functions to a function or object ready to be used in `yield receive()`.
+Converts a callback-based function or an object containing callback-based functions to a function or object ready to be used in `yield get()`.
 
 With a function:
 ```js
-var stat = aryn.drive(require('fs').stat)
+var stat = get.drive(require('fs').stat)
 
-aryn.run(function*(){
-    var stats = aryn.receive(stat(__filename))
+get(function*(){
+    var stats = get(stat(__filename))
     console.log(stats)
-})
+})()
 ```
 
 With an object containing callback-based functions:
 ```js
-var fs = aryn.drive(require('fs'))
+var fs = get.drive(require('fs'))
 
-aryn.run(function*(){
-    var stat = aryn.receive(fs.stat(__filename))
+get(function*(){
+    var stat = get(fs.stat(__filename))
     console.log(stat)
-})
+})()
 ```
 
 ## Channels
@@ -170,9 +167,9 @@ send(ch, 1)
 send(ch, 2)
 send(ch, 3)
 
-run(function(){
-    console.log(yield receive(ch))
-})
+get(function(){
+    console.log(yield get(ch))
+})()
 
 output:
 2
@@ -191,40 +188,40 @@ var tstm = stream(100) // stream throttled with a 100 msecs
 Sends data to a channel. Always use it preceded by the `yield` keyword, unless you are using it from outside of a process.
 ```js
 var ch = chan()
-run(function*(){
+get(function*(){
     yield send(ch, 'some message')
-})
+})()
 ```
 
-### yield receive(channel: Channel): Object
-Receives data from a channel, Promise, `driven` functions, or array of those mentioned before. If given an array or object, `receive` will resolve all in parallel.
+### yield get(channel: Channel): Object
+Receives data from a channel, Promise or `driven` functions. If given an native array or object, `get` will resolve all in parallel.
 ```js
 var ch = chan()
-run(function*(){
-    var msg = yield receive(ch)
-})
+get(function*(){
+    var msg = yield get(ch)
+})()
 ```
 > Notice: The `yield` keyword is needed.
 
 Example using jQuery promises implementation:
 ```js
-var player = yield receive($.get('http://api.com/player/1'))
+var player = yield get($.get('http://api.com/player/1'))
 console.log(player)
 ```
 
 Example using driven callbacks in Node.js:
 ```js
-var fs = aryn.drive(require('fs'))
+var fs = get.drive(require('fs'))
 
-aryn.run(function*(){
-    var stat = aryn.receive(fs.stat(__filename))
+get(function*(){
+    var stat = get(fs.stat(__filename))
     console.log(stat)
-})
+})()
 ```
 
 Example using parallel resolutions:
 ```js
-var result = yield receive([
+var result = yield get([
     $.get('http://api.com/books'),
     $.get('http://api.com/authors')
 ]);
@@ -232,9 +229,9 @@ var result = yield receive([
 var books   = result[0];
 var authors = result[1];
 
-// or even better
+// even better with objects
 
-var result = yield receive({
+var result = yield get({
     books:   $.get('http://api.com/books'),
     authors: $.get('http://api.com/authors')
 });
@@ -254,18 +251,18 @@ close(ch)
 ### yield timeout(time: Number)
 Stops a process for the specified time (in milliseconds).
 ```js
-run(function*(){
+get(function*(){
     yield timeout(100) // pause it 100 milliseconds
-})
+})()
 ```
 > Notice: The `yield` keyword is needed
 
-### debug(debug? Boolean)
-Sets whether to make processes fails loudly or not. The Aryn processes fail just like a normal JavaScript function by default, which is good for development but not for production. If you want processes to fail silently -á la Erlang- just turn off the debug mode:
+### throws(throws? Boolean)
+Sets whether to make processes throws on fail or not. The Getjs processes fails silently by default, but if you want processes fails loudly while debugging you code, just write `get.throws(true)` somewhere in your code:
 
 ```js
-// make processes fail silently
-aryn.debug(false)
+// make processes throws on fail
+get.throws(true)
 ```
 
 > Recommended for production.
@@ -341,35 +338,7 @@ elem = document.getElementById('button')
 ch = listen(elem, 'click', stream())
 
 // log to the console all sent event objects
-run(function*() {
-    while (true) console.log(yield receive(ch))
-})
+get(function*() {
+    while (true) console.log(yield get(ch))
+})()
 ```
-
-### forever(gen: GeneratorFunction, params?...): Process
-Spawns a new process but once the process ends or fails it is automatically restarted. It is a convenient way to persistently execute code blocks, avoiding `while(true)` boilerplate with additional fail-over.
-
-Example with using `run`:
-```js
-run(function*() {
-    while (true) {
-        yield timeout(500)
-        var event = yield receive(mChan)
-        console.log(event.layerX || event.clientX)
-    }
-})
-```
-
-Example using forever:
-```js
-forever(function*() {
-    yield timeout(500)
-    var event = yield receive(mChan)
-    console.log(event.layerX || event.clientX)
-})
-```
-Advantages:
-
-1. `while(true)` boilerplate removal.
-2. Restarts once terminated.
-3. Restarts when fails.
