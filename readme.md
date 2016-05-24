@@ -2,7 +2,7 @@
 
 Unifying library to make sequential your asynchonous code.
 
-**Getjs** is a library based on generators workflow to free one of callbacks and Promises, making sequential your asynchonous code. The Getjs key feature is the interoperability with thirth-party libraries, so, it is possible to consume callbacks, event-driven, or Promise based APIs.
+**Getjs** is a control flow library based in generators to get free of callbacks and Promises boilerplate, making sequential your asynchonous code. The Getjs key feature is the interoperability with thirth-party libraries, so it is possible to consume callbacks, event-driven, or Promise based APIs, and the code will remain sequential.
 
 Example in Node.js:
 ```js
