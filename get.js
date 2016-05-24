@@ -13,6 +13,22 @@ var
 slice       = Array.prototype.slice,
 indentityFn = function(x){ return x };
 
+var DoneMixin = {
+
+    done: function(fn) {
+        if (! this.doneListeners) { this.doneListeners = [] }
+        this.doneListeners.push(fn);
+    },
+
+    fireDone: function(val, err) {
+        if (this.doneListeners) {
+            this.doneListeners.forEach(function(listener){
+                listener(val, err);
+            });
+        }
+    }
+}
+
 function schedule(fn, time) {
     if (time === void 0 && typeof global.setImmediate !== 'undefined') {
         setImmediate(fn);
@@ -72,24 +88,13 @@ BreakPoint.prototype = {
         }
     },
 
-    done: function(fn) {
-        if (! this.doneListeners) { this.doneListeners = [] }
-        this.doneListeners.push(fn);
-    },
-
-    fireDone: function(val, err) {
-        if (this.doneListeners) {
-            this.doneListeners.forEach(function(listener){
-                listener(val, err);
-            });
-        }
-    },
-
     pushToArray: function(array) {
         array.push(this);
         return this;
     }
 }
+
+copy(DoneMixin, BreakPoint.prototype);
 
 BreakPoint.resumeAll = function(array, withValue) {
     while (array.length) {
@@ -109,9 +114,6 @@ function Process(generator, scope) {
 Process.prototype = {
 
     throws: false,
-
-    done : indentityFn,
-    catch: indentityFn,
 
     isSuspended: function() {
         return this.state.value instanceof BreakPoint && !this.state.value.isResumed();
@@ -133,8 +135,8 @@ Process.prototype = {
         } else {
             try {
                 this.state = this.routine.next(withValue);
-            } catch (e) {
-                this.catch(e);
+            } catch (err) {
+                this.fireDone(void 0, err);
                 return;
             }
         }
@@ -148,10 +150,13 @@ Process.prototype = {
         if (! this.state.done) {
             this.runNext(value);
         } else {
-            this.done(value);
+            this.fireDone(value);
         }
     }
 }
+
+copy(DoneMixin, Process.prototype);
+
 
 function Buffer(size) {
     this.size  = isNaN(size) ? 1 : size;
@@ -406,8 +411,11 @@ function toBreakPoint(obj) {
     }
 
     if (obj instanceof Process) {
-        breakp   = new BreakPoint();
-        obj.done = function receive(v) { breakp.resume(v) }
+        breakp = new BreakPoint();
+        obj.done(function done(val, err) {
+            breakp.resume(val);
+            breakp.fireDone(val, err);
+        });
         return breakp;
     }
 
@@ -512,10 +520,6 @@ function wrap(gen) {
         var
         process = new Process(gen, this),
         breakp  = toBreakPoint(process);
-
-        process.done  = function(val){ breakp.fireDone(val) }
-        process.catch = function(err){ breakp.fireDone(void 0, err) }
-
         process.run.apply(process, arguments);
         return breakp;
     }
