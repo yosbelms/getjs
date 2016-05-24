@@ -401,6 +401,7 @@ function toBreakPoint(obj) {
     if (isPromise(obj)) {
         breakp = new BreakPoint();
         obj.then(function receive(v) { breakp.resume(v) });
+        isFunction(obj.catch) || obj.catch(function throw(e) { breakp.throw(e) });
         return breakp;
     }
 
