@@ -41,7 +41,6 @@ function BreakPoint(timeout) {
     this.process       = void 0;
     this.resumed       = false;
     this.timeout       = timeout;
-    this.doneListeners = void 0;
 }
 
 BreakPoint.prototype = {
@@ -116,7 +115,7 @@ Process.prototype = {
     throws: false,
 
     isSuspended: function() {
-        return this.state.value instanceof BreakPoint && !this.state.value.isResumed();
+        return isBreakPoint(this.state.value) && !this.state.value.isResumed();
     },
 
     run: function() {
@@ -625,7 +624,7 @@ copy({
         return chan;
     },
 
-    drive: function(obj, ctx) {
+    drive: function drive(obj, ctx) {
         var
         newObj, name, prop,
         syncPrefix = /Sync$/;
