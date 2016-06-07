@@ -9,6 +9,8 @@ var chp = require('child_process');
     'getjs_collaboration.js',
     'csp_collaboration.js',
 
+    'getjs_stream.js',
+
 ].forEach(function(s) {
     chp.fork(s);
 })
