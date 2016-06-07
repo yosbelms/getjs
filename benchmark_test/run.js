@@ -1,12 +1,12 @@
 var chp = require('child_process');
 [
-    'aryn_unbuffered.js',
+    'getjs_unbuffered.js',
     'csp_unbuffered.js',
 
-    'aryn_buffered.js',
+    'getjs_buffered.js',
     'csp_buffered.js',
 
-    'aryn_collaboration.js',
+    'getjs_collaboration.js',
     'csp_collaboration.js',
 
 ].forEach(function(s) {

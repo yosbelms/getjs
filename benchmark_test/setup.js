@@ -1,6 +1,5 @@
 function makeBuffer(size) {
     var buff = new Array(size), i;
-    //console.log(buff.length);
     for (i = 0; i < size; i++) {
         buff[i] = '0';
     }
