@@ -18,6 +18,7 @@ var DoneMixin = {
     done: function(fn) {
         if (! this.doneListeners) { this.doneListeners = [] }
         this.doneListeners.push(fn);
+        return this;
     },
 
     fireDone: function(val, err) {
@@ -37,13 +38,13 @@ function schedule(fn, time) {
     }
 }
 
-function BreakPoint(timeout) {
-    this.process       = void 0;
-    this.resumed       = false;
-    this.timeout       = timeout;
+function Breakpoint(timeout) {
+    this.process = void 0;
+    this.resumed = false;
+    this.timeout = timeout;
 }
 
-BreakPoint.prototype = {
+Breakpoint.prototype = {
 
     isResumed: function() {
         return this.resumed;
@@ -81,9 +82,9 @@ BreakPoint.prototype = {
         if (this.process) {
             this.resumed = true;
             process      = this.process;
-            this.process.routine.throw(err);
             this.process = null;
             this.fireDone(void 0, err);
+            process.routine.throw(err);
         }
     },
 
@@ -93,9 +94,9 @@ BreakPoint.prototype = {
     }
 }
 
-copy(DoneMixin, BreakPoint.prototype);
+copy(DoneMixin, Breakpoint.prototype);
 
-BreakPoint.resumeAll = function(array, withValue) {
+Breakpoint.resumeAll = function(array, withValue) {
     while (array.length) {
         array.shift().resume(withValue);
     }
@@ -107,7 +108,6 @@ function Process(generator, scope) {
     this.state     = { done: false, value: void 0 };
     this.generator = generator;
     this.routine   = void 0;
-    this.args      = void 0;
 }
 
 Process.prototype = {
@@ -115,7 +115,7 @@ Process.prototype = {
     throws: false,
 
     isSuspended: function() {
-        return isBreakPoint(this.state.value) && !this.state.value.isResumed();
+        return isBreakpoint(this.state.value) && !this.state.value.isResumed();
     },
 
     run: function() {
@@ -141,7 +141,7 @@ Process.prototype = {
         }
 
         value = this.state.value;
-        if (isBreakPoint(value)) {
+        if (isBreakpoint(value)) {
             value.bind(this);
             return;
         }
@@ -187,8 +187,8 @@ function Channel(buffer, transform) {
     this.buffer              = buffer;
     this.closed              = false;
     this.data                = void 0;
-    this.senderBreakPoints   = [];
-    this.receiverBreakPoints = [];
+    this.senderBreakpoints   = [];
+    this.receiverBreakpoints = [];
     this.transform           = transform || indentityFn;
 }
 
@@ -200,23 +200,23 @@ Channel.prototype = {
         // is unbuffered
         if (! this.buffer) {
             if (this.data !== void 0) {
-                if (this.senderBreakPoints[0]) {
-                    this.senderBreakPoints.shift().resume();
+                if (this.senderBreakpoints[0]) {
+                    this.senderBreakpoints.shift().resume();
                 }
                 data      = this.data;
                 this.data = void 0;
                 return data;
             } else {
-                return (new BreakPoint()).pushToArray(this.receiverBreakPoints);
+                return (new Breakpoint()).pushToArray(this.receiverBreakpoints);
             }
         }
 
         // if buffered
         if (this.buffer.isEmpty()) {
-            return (new BreakPoint()).pushToArray(this.receiverBreakPoints);
+            return (new Breakpoint()).pushToArray(this.receiverBreakpoints);
         } else {
-            if (this.senderBreakPoints[0]) {
-                this.senderBreakPoints.shift().resume();
+            if (this.senderBreakpoints[0]) {
+                this.senderBreakpoints.shift().resume();
             }
             return this.buffer.shift();
         }
@@ -228,44 +228,46 @@ Channel.prototype = {
         // is unbuffered
         if (! this.buffer) {
             if (this.data !== void 0) {
-                if (this.receiverBreakPoints[0]) {
-                    this.receiverBreakPoints.shift().resume(this.data);
+                if (this.receiverBreakpoints[0]) {
+                    this.receiverBreakpoints.shift().resume(this.data);
                 }
             } else {
-                if (this.receiverBreakPoints[0]) {
+                if (this.receiverBreakpoints[0]) {
                     this.data = void 0;
-                    this.receiverBreakPoints.shift().resume(this.transform(data));
-                    return new BreakPoint(0);
+                    this.receiverBreakpoints.shift().resume(this.transform(data));
+                    return new Breakpoint(0);
                 }
             }
             this.data = this.transform(data);
-            return (new BreakPoint()).pushToArray(this.senderBreakPoints);
+            return (new Breakpoint()).pushToArray(this.senderBreakpoints);
         }
 
         // if buffered
         if (! this.buffer.isFull()) {
             this.buffer.push(this.transform(data));
-            if (this.receiverBreakPoints[0]) {
-                this.receiverBreakPoints.shift().resume(this.buffer.shift());
+            if (this.receiverBreakpoints[0]) {
+                this.receiverBreakpoints.shift().resume(this.buffer.shift());
             }
         }
 
         if (this.buffer.isFull()) {
-            return (new BreakPoint()).pushToArray(this.senderBreakPoints);
+            return (new Breakpoint()).pushToArray(this.senderBreakpoints);
+        } else {
+            return new Breakpoint(0);
         }
     },
 
     close: function() {
         this.closed            = true;
-        this.senderBreakPoints = [];
-        BreakPoint.resumeAll(this.receiverBreakPoints);
+        this.senderBreakpoints = [];
+        Breakpoint.resumeAll(this.receiverBreakpoints);
     }
 }
 
 // Stream
 function Stream(wait, transform) {
     this.closed              = false;
-    this.receiverBreakPoints = [];
+    this.receiverBreakpoints = [];
     this.trailingEdgeTimeout = null;
     this.releasingTime       = 0;
     this.wait                = wait || 0;
@@ -277,7 +279,7 @@ function Stream(wait, transform) {
 Stream.prototype = copy({
 
     receive: function() {
-        return (new BreakPoint()).pushToArray(this.receiverBreakPoints);
+        return (new Breakpoint()).pushToArray(this.receiverBreakpoints);
     },
 
     send: function(data) {
@@ -291,11 +293,11 @@ Stream.prototype = copy({
         clearTimeout(this.trailingEdgeTimeout);
 
         if (remaining <= 0) {
-            BreakPoint.resumeAll(this.receiverBreakPoints, this.transform(data));
+            Breakpoint.resumeAll(this.receiverBreakpoints, this.transform(data));
             this.resetTimer(now);
         } else {
             this.trailingEdgeTimeout = setTimeout(function() {
-                BreakPoint.resumeAll(me.receiverBreakPoints, this.transform(data));
+                Breakpoint.resumeAll(me.receiverBreakpoints, this.transform(data));
                 me.resetTimer(Date.now());
             }, remaining);
         }
@@ -309,7 +311,7 @@ Stream.prototype = copy({
 }, Object.create(Channel.prototype));
 
 
-// go lib
+// get lib
 function copy(from, to, own) {
     for (var name in from) {
         if (own === true) {
@@ -344,8 +346,8 @@ function isArray(arr) {
     return Array.isArray(arr);
 }
 
-function isBreakPoint(obj) {
-    return obj instanceof BreakPoint;
+function isBreakpoint(obj) {
+    return obj instanceof Breakpoint;
 }
 
 function isGeneratorFunction(obj) {
@@ -375,26 +377,27 @@ function filter(filter) {
     }
 
     if (!isNaN(filter)) {
-        return function singleArgFilter(val) {
-            return val[filter];
+        return function singleArgFilter() {
+            return arguments[filter];
         }
     }
 
-    if (filter.length !== void 0) {
+    if (isArray(filter)) {
         return function arrayToObject(val) {
-            var i, ret = {};
+            var i, prop, ret = {};
             for (i = 0; i < filter.length; i++) {
-                ret[filter[i]] = val[i];
+                prop = filter[i];
+                ret[prop] = val[prop];
             }
             return ret;
         }
     }
 }
 
-function toBreakPoint(obj) {
+function toBreakpoint(obj) {
     var breakp;
 
-    if (isBreakPoint(obj)) {
+    if (isBreakpoint(obj)) {
         return obj;
     }
 
@@ -403,14 +406,14 @@ function toBreakPoint(obj) {
     }
 
     if (isPromise(obj)) {
-        breakp = new BreakPoint();
+        breakp = new Breakpoint();
         obj.then(function receive(v) { breakp.resume(v) });
         isFunction(obj.catch) || obj.catch(function _throw(e) { breakp.throw(e) });
         return breakp;
     }
 
     if (obj instanceof Process) {
-        breakp = new BreakPoint();
+        breakp = new Breakpoint();
         obj.done(function done(val, err) {
             breakp.resume(val);
             breakp.fireDone(val, err);
@@ -419,24 +422,24 @@ function toBreakPoint(obj) {
     }
 
     if (isArray(obj)) {
-        return arrToBreakPoint(obj);
+        return arrToBreakpoint(obj);
     }
 
     if (isObject(obj)) {
-        return objToBreakPoint(obj);
+        return objToBreakpoint(obj);
     }
 }
 
-function arrToBreakPoint(arr) {
+function arrToBreakpoint(arr) {
     var
     i, breakp, oResume,
     valuesArr  = [],
-    ret        = new BreakPoint(),
+    ret        = new Breakpoint(),
     len        = arr.length,
     numPending = len;
 
     for (i = 0; i < len; i++) {
-        breakp  = toBreakPoint(arr[i]);
+        breakp  = toBreakpoint(arr[i]);
         oResume = breakp.resume;
 
         breakp.resume = (function(oResume, valuesArr) {
@@ -454,18 +457,18 @@ function arrToBreakPoint(arr) {
     return ret;
 }
 
-function objToBreakPoint(obj) {
+function objToBreakpoint(obj) {
     var
     i, name, breakp, oResume,
     valuesObj  = {},
     keys       = Object.keys(obj),
-    ret        = new BreakPoint(),
+    ret        = new Breakpoint(),
     len        = keys.length,
     numPending = len;
 
     for (i = 0; i < len; i++) {
         name    = keys[i];
-        breakp  = toBreakPoint(obj[name]);
+        breakp  = toBreakpoint(obj[name]);
         oResume = breakp.resume;
 
         breakp.resume = (function(oResume, valuesObj, name) {
@@ -487,8 +490,8 @@ function driveFn(fn, ctx) {
     if (!fn.__drivenFn) {
         fn.__drivenFn = function drivenFn() {
             var
-            args = slice.call(arguments),
-            breakp = new BreakPoint();
+            args   = slice.call(arguments),
+            breakp = new Breakpoint();
 
             args.push(function(err, value) {
                 if (err) {
@@ -518,7 +521,7 @@ function wrap(gen) {
     return function process() {
         var
         process = new Process(gen, this),
-        breakp  = toBreakPoint(process);
+        breakp  = toBreakpoint(process);
         process.run.apply(process, arguments);
         return breakp;
     }
@@ -526,16 +529,15 @@ function wrap(gen) {
 
 function get(obj) {
     if (isGeneratorFunction(obj)) { return wrap(obj) }
-    return toBreakPoint(obj);
+    return toBreakpoint(obj);
 }
 
 copy({
     get                : get,
-    go                 : wrap,
     copy               : copy,
     eventFunctionNames : eventFunctionNames,
 
-    BreakPoint         : BreakPoint,
+    Breakpoint         : Breakpoint,
     Process            : Process,
     Channel            : Channel,
     Stream             : Stream,
@@ -550,10 +552,14 @@ copy({
 
     // API
 
+    go: function go(gen) {
+        return wrap(gen).call(this);
+    },
+
     filter: filter,
 
     timeout: function timeout(t) {
-        return new BreakPoint(t);
+        return new Breakpoint(t);
     },
 
     chan: function chan(size, transform) {
@@ -600,7 +606,7 @@ copy({
         var name, i, isRegistered,
         len = eventFunctionNames.length;
 
-        filtr = filter(filtr || 0);
+        filtr = (filtr === void 0) ? filter(0) : filter(filtr);
 
         if (! isChannel(chan)) { throw 'invalid channel' }
         if (! obj) { throw 'invalid object' }
@@ -609,7 +615,7 @@ copy({
             name = eventFunctionNames[i];
             if (isFunction(obj[name])) {
                 obj[name](eventName, function EventListener() {
-                    go.send(chan, filtr(arguments));
+                    get.send(chan, filtr.apply(this, arguments));
                 });
                 isRegistered = true;
                 break;
@@ -631,6 +637,8 @@ copy({
 
         if (! obj) { return }
 
+        ctx = ctx || obj;
+
         if (isFunction(obj)) {
             return driveFn(obj, ctx);
         } else {
@@ -638,7 +646,7 @@ copy({
             for (name in obj) {
                 if (syncPrefix.test(name)) { continue }
                 prop = obj[name];
-                newObj[name] = isFunction(prop) ? driveFn(prop, ctx || obj) : prop;
+                newObj[name] = isFunction(prop) ? driveFn(prop, ctx) : prop;
             }
             return newObj;
         }
