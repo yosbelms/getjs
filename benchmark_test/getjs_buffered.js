@@ -20,5 +20,5 @@ get.go(function*() {
     while (! getChan.closed) {
         yield get(getChan)
     }
-    console.log('Getjs buffered channel:', time() - startTime);
+    console.log('Getjs buffered channel:', setup.toKbps(buff.length, time() - startTime));
 })

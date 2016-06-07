@@ -41,7 +41,13 @@ function collaborationTest(ch, libName) {
     intent()
 };
 
+
+function toKbps(b, ms) {
+    return String(Math.round((b/1024)/(ms/1000))) + ' Kbps'
+}
+
 exports.time = time;
 exports.buffer = buff;
 exports.bigBuffer = bigBuff;
+exports.toKbps = toKbps;
 exports.collaborationTest = collaborationTest;

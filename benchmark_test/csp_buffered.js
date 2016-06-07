@@ -21,5 +21,5 @@ csp.go(function*() {
         v = yield csp.take(cspChan)
         if (csp.CLOSED === v) break
     }
-    console.log('JS-CSP buffered channel:', time() - startTime);
+    console.log('JS-CSP buffered channel:', setup.toKbps(buff.length, time() - startTime));
 })
