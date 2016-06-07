@@ -283,22 +283,24 @@ Stream.prototype = copy({
     send: function(data) {
         if (this.closed) { throw 'closed channel' }
 
-        var
-        me        = this,
-        now       = Date.now(),
-        remaining = this.releasingTime - now;
+        var me = this, now, remaining;
 
-        clearTimeout(this.trailingEdgeTimeout);
+        if (this.wait > 0) {
+            now       = Date.now();
+            remaining = this.releasingTime - now;
 
-        if (remaining <= 0) {
-            Breakpoint.resumeAll(this.receiverBreakpoints, this.transform(data));
-            this.resetTimer(now);
-        } else {
+            clearTimeout(this.trailingEdgeTimeout);
+
             this.trailingEdgeTimeout = setTimeout(function() {
                 Breakpoint.resumeAll(me.receiverBreakpoints, this.transform(data));
                 me.resetTimer(Date.now());
             }, remaining);
+        } else {
+            Breakpoint.resumeAll(this.receiverBreakpoints, this.transform(data));
+            this.resetTimer(now);
         }
+
+        return new Breakpoint(0);
     },
 
     resetTimer: function(now) {
