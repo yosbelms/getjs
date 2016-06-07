@@ -252,8 +252,6 @@ Channel.prototype = {
 
         if (this.buffer.isFull()) {
             return (new Breakpoint()).pushToArray(this.senderBreakpoints);
-        } else {
-            return new Breakpoint(0);
         }
     },
 
