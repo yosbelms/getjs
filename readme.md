@@ -2,7 +2,7 @@
 
 Unifying library to make sequential your asynchonous code.
 
-**Getjs** is a control flow library based in generators to be free of callbacks and Promises boilerplate, making sequential your asynchonous code. The Getjs key feature is the interoperability with thirth-party libraries, so it is possible to consume callbacks, event-driven, or Promise based APIs, and the code will remain sequential.
+**Getjs** is a control flow library based in generators to be free of callbacks and Promises boilerplate by making sequential your asynchonous code. One of the Getjs key features is the interoperability with thirth-party libraries, so it is possible to consume callbacks, event-driven, or Promise based APIs, and the code will remain sequential.
 
 Example in Node.js:
 ```js
@@ -16,7 +16,7 @@ get.go(function*(){
 
 In ~15Kb (unminified and uncompressed) Getjs makes possible to take advantage of libraries based on most used techniques such as callbacks, events, and Promises, to take advantage of the huge JavaScript ecosystem including the whole Node.js API. It also brings CSP (Communicating Sequential Processes) to the JavaScript world.
 
-Examples of how Getjs allows you to reuse Promise-based libraries, for example, jQuery:
+Examples of how Getjs allows you to use Promise-based libraries, for example, jQuery:
 
 **DOM events**
 ```js
@@ -84,14 +84,14 @@ get(function*() {
 ## With Getjs
 
 * You will be able to take advantage of the JavaScript asynchronicity by writing sequential code.
-* You will be able to reuse any Promise-based library avoiding `then-callback` boilerplate.
-* You will use the whole Node.js asynchonous API without the annoying `callback-hell`.
-* You can compose your application by creating lightweight proccesses which comunicate by passing messages through channels.
+* You will be able to reuse any Promise-based library avoiding the `then-callback` boilerplate.
+* You will use the whole Node.js asynchonous core API without the annoying `callback-hell`.
+* You can compose your application by creating lightweight processes which communicates by passing messages through channels.
 
 
 ## API
 
-The API is published under the `get.` namespace, however it is possible to use it globally by using the `get.global()` function.
+The API is published under the `get.` namespace, however it is possible to use it globally for rapid prototyping by using the `get.global()` function.
 
 ```js
 // namespaced
@@ -136,7 +136,7 @@ Always use `yield` keyword before the `get` function unless you want to create a
 
 
 ## Breakpoint
-Breakpoints are objects that tells the processes to stop once yielded, it resumes the process execution once the asynchronus task ends. It has a method (`done`) which accept callbacks to be executed either when the task is terminated or a error has occured inside a process.
+Breakpoints are objects that tells processes to stop once yielded, it resumes the process execution once the method `resume` is internally called once some asynchronous task ends. It has a method (`done`) which accept callbacks to be executed either when the task is terminated or an error has occured inside a process.
 
 Example:
 ```
@@ -161,7 +161,7 @@ get.go(function*(){
 
 
 ## Processes
-Processes (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parameter. Getjs takes advantage of the native scheduler, that is, there is not a custom scheduler implementation. Processes along with Channels are the main pieces of the Getjs CSP approach.
+Processes (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parameter. Getjs takes advantage of the native javascript scheduler, that is, there is not a custom scheduler implementation. Processes along with Channels are the main pieces of the Getjs CSP approach.
 
 
 ### go(gen: GeneratorFunction): Breakpoint
@@ -175,10 +175,10 @@ task('http://github.com')
 ```
 
 ## Driven Callbacks
-Driven callbacks are callbacks converted to the breakpoint underlaying architecture, it's the same idea behind **promisifyAll** in the Bluebird library.
+Driven callbacks are callbacks converted to the breakpoint underlaying architecture, it's akin the idea behind **promisifyAll** in Bluebird library.
 
 ### drive(object?: Function|Object, ctx?: Object): Object|Function
-Converts a callback-based function or an object containing callback-based functions to a function or object ready to be used with `yield get()` function.
+Converts a callback-based function or an object containing callback-based functions to a function or object ready to be used with `yield get()`.
 
 With a function:
 ```js
