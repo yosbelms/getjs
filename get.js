@@ -54,7 +54,7 @@ Breakpoint.prototype = {
         var me = this;
 
         if (me.process || me.isResumed()) {
-            throw 'This break-point has been already binded';
+            throw 'this break-point has been already binded';
         }
 
         me.process = process;
@@ -283,12 +283,13 @@ Stream.prototype = copy({
     send: function(data) {
         if (this.closed) { throw 'closed channel' }
 
-        var me = this, now, remaining;
+        var
+        remaining,
+        me  = this,
+        now = Date.now();
 
         if (this.wait > 0) {
-            now       = Date.now();
             remaining = this.releasingTime - now;
-
             clearTimeout(this.trailingEdgeTimeout);
 
             this.trailingEdgeTimeout = setTimeout(function() {
@@ -518,6 +519,10 @@ var eventFunctionNames = [
 
 
 function wrap(gen) {
+    if (! isGeneratorFunction(gen)) {
+        throw 'invalid generator function';
+    }
+
     return function process() {
         var
         process = new Process(gen, this),
@@ -567,7 +572,8 @@ copy({
             return new Channel(size, transform);
         }
 
-        if (isNaN(size)) {
+        // isNaN(null) == false  :O
+        if (isNaN(size) || size === null) {
             return new Channel(null, transform);
         }
 
@@ -579,10 +585,10 @@ copy({
     },
 
     sender: function sender(chan, filtr) {
-        if (! isChannel(cha)) { throw 'invalid channel' }
+        if (! isChannel(chan)) { throw 'invalid channel' }
         filtr = filter(filtr || 0);
         return function sender() {
-            chan.send(filtr(arguments));
+            chan.send(filtr.apply(this, arguments));
         }
     },
 
