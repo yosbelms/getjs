@@ -1,0 +1,27 @@
+{
+    "author"      : "Yosbel Marin",
+    "name"        : "getjs",
+    "version"     : "1.1.0",
+    "license"     : "MIT",
+    "description" : "Unifying library to make sequential your asynchonous code",
+    "repository"  : "https://github.com/yosbelms/getjs.git",
+
+    "devDependencies": {
+        "jasmine" : "2.3.2"
+    },
+
+    "scripts": {
+        "test": "node test/run.js"
+    },
+
+    "keywords": [
+         "asynchronous",
+         "sequential",
+         "generators",
+         "promise",
+         "coroutine",
+         "csp",
+         "channels",
+         "task"
+    ]
+}
