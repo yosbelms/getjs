@@ -1,0 +1,73 @@
+<script type="text/javascript" src="vendor/csp/csp-browser.js"></script>
+<script type="text/javascript" src="../get.js"></script>
+<body>
+    <button onclick="runGetjs()">Getjs</button>
+    <button onclick="runJSCSP()">JS-CSP</button>
+    <br />
+    <img src="vendor/ajax-loader.gif">
+</body>
+
+<script type="text/javascript">
+    var csp = require('csp');
+    var buffSize = 500;
+    var len = 1000000;
+
+    function runGetjs() {
+        var getChan = get.chan(buffSize);
+
+        console.time('getjs')
+
+        // receive
+        var rec = get(function*(getChan) {
+            while (! getChan.closed) {
+                yield get(getChan)
+            }
+        })
+
+        // send
+        get.go(function*() {
+            var i;
+
+            rec(getChan)
+
+            for (i = 0; i < len; i++) {
+                yield get.send(getChan, 1)
+            }
+            get.close(getChan)
+            console.timeEnd('getjs')
+        })
+
+
+        
+    }
+
+    function runJSCSP() {
+        var cspChan = csp.chan(buffSize);
+
+        console.time('js-csp')
+
+        // send
+        csp.go(function*() {
+            var i;
+
+            receive(cspChan)
+
+            for (i = 0; i < len; i++) {
+                yield csp.put(cspChan, 1)
+            }
+            cspChan.close()
+            console.timeEnd('js-csp')
+        })
+
+        // receive
+        function receive(cspChan) {
+            csp.go(function*() {
+                while (true) {
+                    v = yield csp.take(cspChan)
+                    if (csp.CLOSED === v) break
+                }
+            })    
+        }
+
+    }
+</script>
