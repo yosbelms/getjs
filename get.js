@@ -13,14 +13,29 @@ var
 slice       = Array.prototype.slice,
 indentityFn = function(x){ return x };
 
+
+// DoneMixing: mixing to provide to notify listeners once a task is done
+// Usage:
+
+// copy(DoneMixing, obj)
+// obj.done(function(val, err) {
+//     if (err)
+//         console.log('Error')
+//     else
+//         console.log(val)
+// })
+// obj.fireDone(val, error) // firing
+
 var DoneMixin = {
 
+    // store functions to be executed on done
     done: function(fn) {
         if (! this.doneListeners) { this.doneListeners = [] }
         this.doneListeners.push(fn);
         return this;
     },
 
+    // execute all listeners
     fireDone: function(val, err) {
         if (this.doneListeners) {
             this.doneListeners.forEach(function(listener){
@@ -30,6 +45,7 @@ var DoneMixin = {
     }
 }
 
+// schedule functions
 function schedule(fn, time) {
     if (time === void 0 && typeof global.setImmediate !== 'undefined') {
         setImmediate(fn);
@@ -38,6 +54,9 @@ function schedule(fn, time) {
     }
 }
 
+
+// Breakpoint: stops process execution if yielded,
+// it reasumes the execution if calling `resume` method
 function Breakpoint(timeout) {
     this.process = void 0;
     this.resumed = false;
@@ -50,6 +69,7 @@ Breakpoint.prototype = {
         return this.resumed;
     },
 
+    // binds a process to a breakpoint
     bind: function(process) {
         var me = this;
 
@@ -64,6 +84,7 @@ Breakpoint.prototype = {
         }
     },
 
+    // resume the execution of the binded process
     resume: function(value) {
         var process;
 
@@ -76,6 +97,7 @@ Breakpoint.prototype = {
         }
     },
 
+    // makes the process to throw
     throw: function(err) {
         var process;
 
@@ -96,13 +118,15 @@ Breakpoint.prototype = {
 
 copy(DoneMixin, Breakpoint.prototype);
 
+// call `reasume` in all breakpoints
 Breakpoint.resumeAll = function(array, withValue) {
     while (array.length) {
         array.shift().resume(withValue);
     }
 }
 
-// Process
+// Process: a scheduled task
+// params: generator function, execution scope (this)
 function Process(generator, scope) {
     this.scope     = scope || {};
     this.state     = { done: false, value: void 0 };
@@ -118,12 +142,14 @@ Process.prototype = {
         return isBreakpoint(this.state.value) && !this.state.value.isResumed();
     },
 
+    // start running
     run: function() {
         var me = this;
         this.routine = this.generator.apply(this.scope, arguments);
         schedule(function(){ me.runNext() });
     },
 
+    // execute next tick
     runNext: function(withValue) {
         var value;
 
@@ -140,6 +166,8 @@ Process.prototype = {
             }
         }
 
+        // here is where process allow breakpints to
+        // control its execution
         value = this.state.value;
         if (isBreakpoint(value)) {
             value.bind(this);
@@ -156,7 +184,7 @@ Process.prototype = {
 
 copy(DoneMixin, Process.prototype);
 
-
+// Buffer: simple array based buffer to use with channels
 function Buffer(size) {
     this.size  = isNaN(size) ? 1 : size;
     this.array = [];
@@ -183,6 +211,7 @@ Buffer.prototype = {
     }
 }
 
+// Channel: legendary channel, a structure to transport messages
 function Channel(buffer, transform) {
     this.buffer              = buffer;
     this.closed              = false;
@@ -199,25 +228,37 @@ Channel.prototype = {
 
         // is unbuffered
         if (! this.buffer) {
+            // there is data?
             if (this.data !== void 0) {
+                // release the first sender process
                 if (this.senderBreakpoints[0]) {
                     this.senderBreakpoints.shift().resume();
                 }
+                // clean and return
                 data      = this.data;
                 this.data = void 0;
                 return data;
+
+            // if no data
             } else {
+                // suspend the process wanting to receive
                 return (new Breakpoint()).pushToArray(this.receiverBreakpoints);
             }
         }
 
         // if buffered
+        // empty buffer?
         if (this.buffer.isEmpty()) {
+            // suspend the process wanting to receive
             return (new Breakpoint()).pushToArray(this.receiverBreakpoints);
+
+        // some value in the buffer?
         } else {
+            // release the first sender process
             if (this.senderBreakpoints[0]) {
                 this.senderBreakpoints.shift().resume();
             }
+            // clean and return
             return this.buffer.shift();
         }
     },
@@ -227,30 +268,44 @@ Channel.prototype = {
 
         // is unbuffered
         if (! this.buffer) {
+            // some stored data?
             if (this.data !== void 0) {
+                // deliver data to the first waiting process
                 if (this.receiverBreakpoints[0]) {
                     this.receiverBreakpoints.shift().resume(this.data);
                 }
+
+            // no stored data?
             } else {
+                // pass sent data directly to the first waiting for it
                 if (this.receiverBreakpoints[0]) {
                     this.data = void 0;
                     this.receiverBreakpoints.shift().resume(this.transform(data));
+                    // schedule the the sender process
                     return new Breakpoint(0);
                 }
             }
+
+            // else, store the transformed data
             this.data = this.transform(data);
             return (new Breakpoint()).pushToArray(this.senderBreakpoints);
         }
 
         // if buffered
+        // emty buffer?
         if (! this.buffer.isFull()) {
+            // TODO: optimize below code
+            // store sent value in the buffer
             this.buffer.push(this.transform(data));
+            // if any waiting for the data, give it
             if (this.receiverBreakpoints[0]) {
                 this.receiverBreakpoints.shift().resume(this.buffer.shift());
             }
         }
 
+        // full buffer?
         if (this.buffer.isFull()) {
+            // stop until the buffer start to be drained
             return (new Breakpoint()).pushToArray(this.senderBreakpoints);
         }
     },
@@ -262,7 +317,8 @@ Channel.prototype = {
     }
 }
 
-// Stream
+// Stream: a singular class of channel.
+// it is multicast, throtleable, does not store values. May I call it reactive channel?
 function Stream(wait, transform) {
     this.closed              = false;
     this.receiverBreakpoints = [];
@@ -288,19 +344,25 @@ Stream.prototype = copy({
         me  = this,
         now = Date.now();
 
+        // it is throttled?
         if (this.wait > 0) {
             remaining = this.releasingTime - now;
+
+            // renew the delivery scheduled task
             clearTimeout(this.trailingEdgeTimeout);
 
             this.trailingEdgeTimeout = setTimeout(function() {
                 Breakpoint.resumeAll(me.receiverBreakpoints, this.transform(data));
                 me.resetTimer(Date.now());
             }, remaining);
+
+        // else send the value to ALL listeners
         } else {
             Breakpoint.resumeAll(this.receiverBreakpoints, this.transform(data));
             this.resetTimer(now);
         }
 
+        // schedule the sender
         return new Breakpoint(0);
     },
 
@@ -312,7 +374,7 @@ Stream.prototype = copy({
 }, Object.create(Channel.prototype));
 
 
-// get lib
+// copies from an object to another one
 function copy(from, to, own) {
     for (var name in from) {
         if (own === true) {
@@ -366,24 +428,30 @@ function isGeneratorFunction(obj) {
     return (isFunction(proto.next) && isFunction(proto.throw));
 }
 
+// return a function that returns a filtered result when called
+// the filtering strategy depends on the argument passed
 function filter(filter) {
     if (filter === void 0) {
+        // return arguments as array
         return function filter(){
             return slice.call(arguments);
         }
     }
 
     if (isFunction(filter)) {
+        // indentity
         return filter;
     }
 
     if (!isNaN(filter)) {
+        // return n-th argument
         return function singleArgFilter() {
             return arguments[filter];
         }
     }
 
     if (isArray(filter)) {
+        // uses passed array as keys to extract object properties
         return function arrayToObject(val) {
             var i, prop, ret = {};
             for (i = 0; i < filter.length; i++) {
@@ -395,10 +463,13 @@ function filter(filter) {
     }
 }
 
+
+// convert values to breakpoints
 function toBreakpoint(obj) {
     var breakp;
 
     if (isBreakpoint(obj)) {
+        // if is already a breakpoint, do nothing
         return obj;
     }
 
@@ -407,6 +478,7 @@ function toBreakpoint(obj) {
     }
 
     if (isPromise(obj)) {
+        // transform a promise in a breakpoint
         breakp = new Breakpoint();
         obj.then(function receive(v) { breakp.resume(v) });
         isFunction(obj.catch) || obj.catch(function _throw(e) { breakp.throw(e) });
@@ -431,6 +503,7 @@ function toBreakpoint(obj) {
     }
 }
 
+// converts each value in an array to breakpoints
 function arrToBreakpoint(arr) {
     var
     i, breakp, oResume,
@@ -458,6 +531,7 @@ function arrToBreakpoint(arr) {
     return ret;
 }
 
+// converts each value in a object to breakpoints
 function objToBreakpoint(obj) {
     var
     i, name, breakp, oResume,
@@ -487,6 +561,8 @@ function objToBreakpoint(obj) {
     return ret;
 }
 
+// wrap a node.js asynchronic function and makes it
+// to return a breakpoint
 function driveFn(fn, ctx) {
     if (!fn.__drivenFn) {
         fn.__drivenFn = function drivenFn() {
@@ -517,7 +593,7 @@ var eventFunctionNames = [
     'on',
 ];
 
-
+// returns a function that executes a process
 function wrap(gen) {
     if (! isGeneratorFunction(gen)) {
         throw 'invalid generator function';
@@ -532,11 +608,13 @@ function wrap(gen) {
     }
 }
 
+// Getjs main interface
 function get(obj) {
     if (isGeneratorFunction(obj)) { return wrap(obj) }
     return toBreakpoint(obj);
 }
 
+// public API
 copy({
     get                : get,
     copy               : copy,
