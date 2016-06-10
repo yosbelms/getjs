@@ -6,6 +6,8 @@
     "description" : "Unifying library to make sequential your asynchonous code",
     "repository"  : "https://github.com/yosbelms/getjs.git",
 
+    "main"        : "get.js",
+
     "devDependencies": {
         "jasmine" : "2.3.2"
     },
