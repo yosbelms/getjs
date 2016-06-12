@@ -1,32 +1,31 @@
 #Getjs
 
-Unifying library to make sequential your asynchonous code.
+JavaScript control flow library to make sequential the asynchonous code.
 
-**Getjs** is a control flow library based in generators to be free of callbacks and Promises boilerplate by making sequential your asynchonous code. One of the Getjs key features is the interoperability with thirth-party libraries, so it is possible to consume callbacks, event-driven, or Promise based APIs, and the code will remain sequential.
+**Getjs** is a control flow library based in generators to get rid of callback hells and Promises boilerplate by making sequential your asynchonous code. One of the Getjs key features is the ability to interoperte with libraries based on callbacks, Promise or event-driven APIs, in sequential way.
 
 Example in Node.js:
 ```js
 var fs = get.drive(require('fs'))
 
 get.go(function*(){
-    var stat = get(fs.stat(__filename))
-    console.log(stat)
+    var stat = get(fs.stat(__filename)) // call fs.stats sequentially
+    console.log(stat)                   // log to the console
 })
 ```
 
-In ~15Kb (unminified and uncompressed) Getjs makes possible to take advantage of libraries based on most used techniques such as callbacks, events, and Promises, to take advantage of the huge JavaScript ecosystem including the whole Node.js API. It also brings CSP (Communicating Sequential Processes) to the JavaScript world.
+In ~15Kb (unminified and uncompressed) Getjs makes possible to use a sequential control flow taking advantage of the huge JavaScript ecosystem including the whole Node.js API which is based on callbacks. It also brings CSP (Communicating Sequential Processes) to the JavaScript world.
 
 Examples of how Getjs allows you to use Promise-based libraries, for example, jQuery:
 
 **DOM events**
 ```js
-get.global()
-
 // converting events to stream
-var clickStrm = listen($('#button1'), 'click', stream())
+var clickStrm = get.listen($('#button1'), 'click', get.stream())
 
 get.go(function*(){
     while(true) {
+        // logging the event object to the console
         console.log(yield get(clickStrm))
     }
 })
@@ -34,8 +33,6 @@ get.go(function*(){
 
 **AJAX**
 ```js
-get.global()
-
 get.go(function*(){
     // http request
     var json = yield get($.get('http://github.com'))
@@ -45,8 +42,6 @@ get.go(function*(){
 
 Example that shows CSP with Getjs. Pingpong (ported from [Go](http://talks.golang.org/2013/advconc.slide#6))
 ```js
-get.global()
-
 var player = get(function*(name, table) {
     var ball;
     while (true) {
@@ -58,25 +53,25 @@ var player = get(function*(name, table) {
         ball.hits += 1
 
         console.log(name, ball.hits)
-        yield timeout(100)
+        yield get.timeout(100)
 
         if (! table.closed) {
-            yield send(table, ball)
+            yield get.send(table, ball)
         }
     }
 })
 
 get(function*() {
     var
-    table = chan()
+    table = get.chan()
 
     player('A', table)
     player('B', table)
 
-    yield send(table, {hits: 0})
-    yield timeout(1000)
+    yield get.send(table, {hits: 0})
+    yield get.timeout(1000)
 
-    close(table)
+    get.close(table)
 })()
 ```
 
@@ -99,7 +94,7 @@ get()
 
 // using the global scope
 get.global()
-get(...)
+go(...)
 ```
 
 > The rest of this document assumes using `get.global()` for all the following code snippets.
