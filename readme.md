@@ -109,7 +109,7 @@ get(...)
 The `get` function is overloaded, it makes possible to await future values and convert generator functions to processes.
 
 Examples:
-```
+```js
 // generator to process
 var proc = get(function*(firstName, lastName) {
     return firstName + ' ' + lastName
@@ -139,7 +139,7 @@ Always use `yield` keyword before the `get` function unless you want to create a
 Breakpoints are objects that tells processes to stop once yielded, it resumes the process execution once the method `resume` is internally called once some asynchronous task ends. It has a method (`done`) which accept callbacks to be executed either when the task is terminated or an error has occured inside a process.
 
 Example:
-```
+```js
 var proc = get(function*(){
     
 })
@@ -151,7 +151,7 @@ proc().done(function(returned, error){
 ```
 
 Example using `get.go`:
-```
+```js
 get.go(function*(){
     return 'ok'
 }).done(function(ret){
@@ -175,7 +175,7 @@ task('http://github.com')
 ```
 
 ## Driven Callbacks
-Driven callbacks are callbacks converted to the breakpoint underlaying architecture, it's akin the idea behind **promisifyAll** in Bluebird library.
+Driven callbacks are callbacks converted to the breakpoint underlaying architecture, it's akin to **promisifyAll** in Bluebird library.
 
 ### drive(object?: Function|Object, ctx?: Object): Object|Function
 Converts a callback-based function or an object containing callback-based functions to a function or object ready to be used with `yield get()`.
