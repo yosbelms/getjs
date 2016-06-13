@@ -1,7 +1,7 @@
 {
     "author"      : "Yosbel Marin",
     "name"        : "getjs",
-    "version"     : "1.1.1",
+    "version"     : "1.1.2",
     "license"     : "MIT",
     "description" : "Unifying library to make sequential your asynchonous code",
     "repository"  : "https://github.com/yosbelms/getjs.git",
