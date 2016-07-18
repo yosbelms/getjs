@@ -4,7 +4,7 @@
 
 JavaScript control flow library to make sequential the asynchonous code.
 
-**Getjs** is a control flow library based in generators to get rid of callback hells and Promises boilerplate by making sequential your asynchonous code. One of the Getjs key features is the ability to interoperte with libraries based on callbacks, Promise or event-driven APIs, in sequential way.
+**Getjs** is a control flow library based in generators to get rid of callback hell and Promises boilerplate by making sequential your asynchonous code. One of the Getjs key features is the ability to interoperte with libraries based on callbacks, Promise or event-driven APIs, in a sequential way.
 
 Example in Node.js:
 ```js
@@ -16,7 +16,7 @@ get.go(function*(){
 })
 ```
 
-In ~15Kb (unminified and uncompressed) Getjs makes possible to use a sequential control flow taking advantage of the huge JavaScript ecosystem including the whole Node.js API which is based on callbacks. It also brings CSP (Communicating Sequential Processes) to the JavaScript world.
+In ~15Kb (unminified and uncompressed) Getjs makes it possible to use a sequential control flow taking advantage of the huge JavaScript ecosystem including the whole Node.js API which is based on callbacks. It also brings CSP (Communicating Sequential Processes) to the JavaScript world.
 
 Examples of how Getjs allows you to use Promise-based libraries, for example, jQuery:
 
@@ -83,7 +83,7 @@ get(function*() {
 * You will be able to take advantage of the JavaScript asynchronicity by writing sequential code.
 * You will be able to reuse any Promise-based library avoiding the `then-callback` boilerplate.
 * You will use the whole Node.js asynchonous core API without the annoying `callback-hell`.
-* You can compose your application by creating lightweight processes which communicates by passing messages through channels.
+* You can compose your application by creating lightweight processes which communicate by passing messages through channels.
 
 
 ## API
@@ -103,7 +103,7 @@ go(...)
 
 
 ## Get
-The `get` function is overloaded, it makes possible to await future values and convert generator functions to processes.
+The `get` function is overloaded, making it possible to await future values and convert generator functions to processes.
 
 Examples:
 ```js
@@ -129,11 +129,11 @@ yield get([
 ])
 ```
 
-Always use `yield` keyword before the `get` function unless you want to create a process by passing a generator function. There is detailed examples below.
+Always use the `yield` keyword before the `get` function unless you want to create a process by passing a generator function. There are detailed examples below.
 
 
 ## Breakpoint
-Breakpoints are objects that tells processes to stop once yielded, it resumes the process execution once the method `resume` is internally called once some asynchronous task ends. It has a method (`done`) which accept callbacks to be executed either when the task is terminated or an error has occured inside a process.
+Breakpoints are objects that tell processes to stop once yielded.  It resumes the process execution once the method `resume` is internally called when some asynchronous task ends. It has a method (`done`) which accept callbacks to be executed either when the task is terminated or an error has occured inside a process.
 
 Example:
 ```js
@@ -162,7 +162,7 @@ Processes (a.k.a. tasks or coroutines) are lightweight scheduled functions. It a
 
 
 ### go(gen: GeneratorFunction): Breakpoint
-Creates a new process and executes it returning a function.
+Creates a new process and executes it, returning a function.
 ```js
 var task = get.go(function*(url){
     ...
@@ -172,7 +172,7 @@ task('http://github.com')
 ```
 
 ## Driven Callbacks
-Driven callbacks are callbacks converted to the breakpoint underlaying architecture, it's akin to **promisifyAll** in Bluebird library.
+Driven callbacks are callbacks converted to the breakpoint underlaying architecture, akin to **promisifyAll** in the [Bluebird](http://bluebirdjs.com/) library.
 
 ### drive(object?: Function|Object, ctx?: Object): Object|Function
 Converts a callback-based function or an object containing callback-based functions to a function or object ready to be used with `yield get()`.
@@ -311,10 +311,10 @@ get(function*(){
 > Notice: The `yield` keyword is needed
 
 ### throws(throws? Boolean)
-Sets whether to make processes throws on fail or not. The Getjs processes fails silently by default, but if you want processes fails loudly while debugging you code, just write `get.throws(true)` somewhere in your code:
+Sets whether to make processes throw on fail or not. The Getjs processes fails silently by default, but if you want processes to fail loudly while debugging your code, just write `get.throws(true)` somewhere in your code:
 
 ```js
-// make processes throws on fail
+// make processes throw on fail
 get.throws(true)
 ```
 
@@ -331,7 +331,7 @@ var filt = filter()
 filt(1, 2) // [1, 2]
 ```
 
-If given a Function, the returned function will be the same as the one passed in.
+If given a function, the returned function will be the same as the one passed in.
 
 ```js
 var filt = filter(function(a, b){
@@ -377,7 +377,7 @@ $('.button').on('click', sender(ch))
 ```
 
 ### listen(eventEmitter: Object, eventName: String, channel: Channel, filterFunction?: Function): Channel
-Adds a callback event listener to an Object and returns a channel passed as the third argument. This utility assumes the `eventEmitter` has a function to add event listeners of the following form:
+Adds a callback event listener to an object and returns a channel passed as the third argument. This utility assumes the `eventEmitter` has a function to add event listeners of the following form:
 ```js
 addEventListener|attachEvent|on(eventName: String, callback: Function)
 ```
