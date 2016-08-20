@@ -2,7 +2,7 @@
 
 ![badge](https://circleci.com/gh/yosbelms/getjs/tree/master.png?circle-token=1ed7f0fa8180138ce80a45c727fff58cefe49736)
 
-JavaScript control flow library to make sequential the asynchonous code.
+JavaScript control flow library to make sequential the asyncrhonous code.
 
 **Getjs** is a control flow library based in generators to get rid of callback hell and Promises boilerplate by making sequential your asynchonous code. One of the Getjs key features is the ability to interoperte with libraries based on callbacks, Promise or event-driven APIs, in a sequential way.
 
