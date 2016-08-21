@@ -3,28 +3,12 @@ var jasmine = new Jasmine();
 
 global.get  = require('../get.js');
 
-get.copy({
+global.isFunction = function(obj) {
+    return typeof obj === 'function';
+}
 
-    isBreakpoint: function(obj) {
-        return obj && obj instanceof get.Breakpoint;
-    },
-
-    isFunction: function(obj) {
-        return typeof obj === 'function';
-    },
-
-    isPromise: function(obj) {
-        return obj && isFunction(obj.then);
-    },
-
-}, global);
-
-get.throws(true);
-
-// promise mock
-if (!isFunction(global.Promise)) {
-    Promise = function() { }
-    Promise.prototype.then = function() { }
+global.isPromise = function(obj) {
+    return obj && isFunction(obj.then);
 }
 
 jasmine.configureDefaultReporter({
@@ -35,12 +19,12 @@ jasmine.loadConfig({
     spec_dir   : 'test',
     spec_files : [
         'get.js',
-        'filter.js',
-        'listen.js',
-        'drive.js',
-        'process.js',
+        'go.js',
+        'promisify.js',
+        'coroutines.js',
         'channel.js',
-        'utility_api.js',
+        'all.js',
+        'race.js',
     ]
 });
 

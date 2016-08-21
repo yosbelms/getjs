@@ -1,16 +1,15 @@
+
 describe('channels', function() {
     it('should accept transformers', function(done) {
         var
         transform = function(x) { return x*2 },
         uch = get.chan(null, transform),
-        bch = get.chan(5, transform),
-        stm = get.stream(null, transform);
+        bch = get.chan(5, transform);
 
         // receive first
         get.go(function*() {
-            expect(yield get(uch)).toBe(10)
-            expect(yield get(bch)).toBe(10)
-            expect(yield get(stm)).toBe(10)
+            expect(yield get.recv(uch)).toBe(10)
+            expect(yield get.recv(bch)).toBe(10)
 
             done()
         })
@@ -21,7 +20,6 @@ describe('channels', function() {
 
             // break execution to allow receiving first
             yield get.timeout(0)
-            get.send(stm, 5)
         })
 
     })
@@ -30,10 +28,10 @@ describe('channels', function() {
 describe('unbuffered channels', function() {
 
     it('it should behave sending and receving messages synchronously', function(done) {
-        var proc = get(function*(ch, name){
+        var proc = get.wrap(function*(ch, name){
             var m;
             while(!ch.closed) {
-                m = yield get(ch)
+                m = yield get.recv(ch)
                 m.stack.push(0) // register receive
                 m.procTick.push(name) // register this execution
 
@@ -73,14 +71,14 @@ describe('buffered channels', function() {
     it('it should behave sending and receving messages asynchronously', function(done) {
         var arr = [];
 
-        var procSend = get(function*(ch){
+        var procSend = get.wrap(function*(ch){
             while(!ch.closed) {
                 yield get.send(ch, 0)
                 arr.push(0) // register send
             }
         })
 
-        var procReceive = get(function*(ch) {
+        var procReceive = get.wrap(function*(ch) {
             while(!ch.closed) {
                 yield get(ch)
                 arr.push(1) // register receive
@@ -98,43 +96,6 @@ describe('buffered channels', function() {
             get.close(ch)
 
             expect(arr.slice(0, 3)).toEqual([0, 0, 0])
-            done()
-        })
-
-    })
-
-})
-
-describe('stream channels', function() {
-
-    it('it should me multicast', function(done) {
-        var arr = [];
-
-        var procSend = get(function*(ch){
-            while(!ch.closed) {
-                yield get.send(ch, 0)
-                arr.push(0) // register send
-            }
-        })
-
-        var procReceive = get(function*(ch) {
-            while(!ch.closed) {
-                yield get(ch)
-                arr.push(1) // register receive
-            }
-        })
-
-        get.go(function*(){
-            var ch = get.stream();
-
-            procSend(ch)
-            procReceive(ch)
-            procReceive(ch)
-
-            yield get.timeout(10)
-            get.close(ch)
-
-            expect(arr.slice(0, 6)).toEqual([0, 1, 1, 0, 1, 1])
             done()
         })
 
