@@ -1,51 +1,19 @@
-var global_ = typeof global !== 'undefined'
-        ? global
-        : typeof window !== 'undefined'
-        ? window
-        : typeof self !== 'undefined'
-        ? self
-        : this;
+(function() {
 
-(function(global) {
-"use strict";
+// Global (using `self` in the browser and `global` on the server)
+var global = (typeof self == 'object' && self.self == self && self) ||
+             (typeof global == 'object' && global.global == global && global),
+    slice  = Array.prototype.slice;
 
-var
-slice       = Array.prototype.slice,
-indentityFn = function(x){ return x };
-
-
-// DoneMixing: mixing to provide to notify listeners once a task is done
-// Usage:
-
-// copy(DoneMixing, obj)
-// obj.done(function(val, err) {
-//     if (err)
-//         console.log('Error')
-//     else
-//         console.log(val)
-// })
-// obj.fireDone(val, error) // firing
-
-var DoneMixin = {
-
-    // store functions to be executed on done
-    done: function(fn) {
-        if (! this.doneListeners) { this.doneListeners = [] }
-        this.doneListeners.push(fn);
-        return this;
-    },
-
-    // execute all listeners
-    fireDone: function(val, err) {
-        if (this.doneListeners) {
-            this.doneListeners.forEach(function(listener){
-                listener(val, err);
-            });
-        }
-    }
+// main function
+// returns a function if a generator function is provided,
+// returns a promise (if can be converted)
+function get(obj, ctx) {
+    return isGeneratorFunction(obj)
+            ? get.wrap.call(this, obj, ctx)
+            : toPromise(obj);
 }
 
-// schedule functions
 function schedule(fn, time) {
     if (time === void 0 && typeof global.setImmediate !== 'undefined') {
         setImmediate(fn);
@@ -54,351 +22,12 @@ function schedule(fn, time) {
     }
 }
 
-
-// Breakpoint: stops process execution if yielded,
-// it reasumes the execution if calling `resume` method
-function Breakpoint(timeout) {
-    this.process = void 0;
-    this.resumed = false;
-    this.timeout = timeout;
+function isPromise(p) {
+    return p && typeof p.then === 'function';
 }
 
-Breakpoint.prototype = {
-
-    isResumed: function() {
-        return this.resumed;
-    },
-
-    // binds a process to a breakpoint
-    bind: function(process) {
-        var me = this;
-
-        if (me.process || me.isResumed()) {
-            throw 'this break-point has been already binded';
-        }
-
-        me.process = process;
-
-        if (!isNaN(me.timeout)) {
-            schedule(function(){ me.resume() }, me.timeout);
-        }
-    },
-
-    // resume the execution of the binded process
-    resume: function(value) {
-        var process;
-
-        if (this.process) {
-            this.resumed = true;
-            process      = this.process;
-            this.process = null;
-            schedule(function(){ process.runNext(value) })
-            this.fireDone(value);
-        }
-    },
-
-    // makes the process to throw
-    throw: function(err) {
-        var process;
-
-        if (this.process) {
-            this.resumed = true;
-            process      = this.process;
-            this.process = null;
-            this.fireDone(void 0, err);
-            process.routine.throw(err);
-        }
-    },
-
-    pushToArray: function(array) {
-        array.push(this);
-        return this;
-    }
-}
-
-copy(DoneMixin, Breakpoint.prototype);
-
-// call `reasume` in all breakpoints
-Breakpoint.resumeAll = function(array, withValue) {
-    while (array.length) {
-        array.shift().resume(withValue);
-    }
-}
-
-// Process: a scheduled task
-// params: generator function, execution scope (this)
-function Process(generator, scope) {
-    this.scope     = scope || {};
-    this.state     = { done: false, value: void 0 };
-    this.generator = generator;
-    this.routine   = void 0;
-}
-
-Process.prototype = {
-
-    throws: false,
-
-    isSuspended: function() {
-        return isBreakpoint(this.state.value) && !this.state.value.isResumed();
-    },
-
-    // start running
-    run: function() {
-        var me = this;
-        this.routine = this.generator.apply(this.scope, arguments);
-        schedule(function(){ me.runNext() });
-    },
-
-    // execute next tick
-    runNext: function(withValue) {
-        var value;
-
-        if (this.isSuspended()) { return }
-
-        if (this.throws) {
-            this.state = this.routine.next(withValue);
-        } else {
-            try {
-                this.state = this.routine.next(withValue);
-            } catch (err) {
-                this.fireDone(void 0, err);
-                return;
-            }
-        }
-
-        // here is where process allow breakpints to
-        // control its execution
-        value = this.state.value;
-        if (isBreakpoint(value)) {
-            value.bind(this);
-            return;
-        }
-
-        if (! this.state.done) {
-            this.runNext(value);
-        } else {
-            this.fireDone(value);
-        }
-    }
-}
-
-copy(DoneMixin, Process.prototype);
-
-// Buffer: simple array based buffer to use with channels
-function Buffer(size) {
-    this.size  = isNaN(size) ? 1 : size;
-    this.array = [];
-}
-
-Buffer.prototype = {
-
-    shift: function() {
-        return this.array.shift();
-    },
-
-    push: function(value) {
-        if (this.isFull()) { return false }
-        this.array.push(value);
-        return true;
-    },
-
-    isFull: function() {
-        return !(this.array.length < this.size);
-    },
-
-    isEmpty: function() {
-        return this.array.length === 0;
-    }
-}
-
-// Channel: legendary channel, a structure to transport messages
-function Channel(buffer, transform) {
-    this.buffer              = buffer;
-    this.closed              = false;
-    this.data                = void 0;
-    this.senderBreakpoints   = [];
-    this.receiverBreakpoints = [];
-    this.transform           = transform || indentityFn;
-}
-
-Channel.prototype = {
-
-    receive: function() {
-        var data;
-
-        // is unbuffered
-        if (! this.buffer) {
-            // there is data?
-            if (this.data !== void 0) {
-                // release the first sender process
-                if (this.senderBreakpoints[0]) {
-                    this.senderBreakpoints.shift().resume();
-                }
-                // clean and return
-                data      = this.data;
-                this.data = void 0;
-                return data;
-
-            // if no data
-            } else {
-                // suspend the process wanting to receive
-                return (new Breakpoint()).pushToArray(this.receiverBreakpoints);
-            }
-        }
-
-        // if buffered
-        // empty buffer?
-        if (this.buffer.isEmpty()) {
-            // suspend the process wanting to receive
-            return (new Breakpoint()).pushToArray(this.receiverBreakpoints);
-
-        // some value in the buffer?
-        } else {
-            // release the first sender process
-            if (this.senderBreakpoints[0]) {
-                this.senderBreakpoints.shift().resume();
-            }
-            // clean and return
-            return this.buffer.shift();
-        }
-    },
-
-    send: function(data) {
-        if (this.closed) { throw 'closed channel' }
-
-        // is unbuffered
-        if (! this.buffer) {
-            // some stored data?
-            if (this.data !== void 0) {
-                // deliver data to the first waiting process
-                if (this.receiverBreakpoints[0]) {
-                    this.receiverBreakpoints.shift().resume(this.data);
-                }
-
-            // no stored data?
-            } else {
-                // pass sent data directly to the first waiting for it
-                if (this.receiverBreakpoints[0]) {
-                    this.data = void 0;
-                    this.receiverBreakpoints.shift().resume(this.transform(data));
-                    // schedule the the sender process
-                    return new Breakpoint(0);
-                }
-            }
-
-            // else, store the transformed data
-            this.data = this.transform(data);
-            return (new Breakpoint()).pushToArray(this.senderBreakpoints);
-        }
-
-        // if buffered
-        // emty buffer?
-        if (! this.buffer.isFull()) {
-            // TODO: optimize below code
-            // store sent value in the buffer
-            this.buffer.push(this.transform(data));
-            // if any waiting for the data, give it
-            if (this.receiverBreakpoints[0]) {
-                this.receiverBreakpoints.shift().resume(this.buffer.shift());
-            }
-        }
-
-        // full buffer?
-        if (this.buffer.isFull()) {
-            // stop until the buffer start to be drained
-            return (new Breakpoint()).pushToArray(this.senderBreakpoints);
-        }
-    },
-
-    close: function() {
-        this.closed            = true;
-        this.senderBreakpoints = [];
-        Breakpoint.resumeAll(this.receiverBreakpoints);
-    }
-}
-
-// Stream: a singular class of channel.
-// it is multicast, throtleable, does not store values. May I call it reactive channel?
-function Stream(wait, transform) {
-    this.closed              = false;
-    this.receiverBreakpoints = [];
-    this.trailingEdgeTimeout = null;
-    this.releasingTime       = 0;
-    this.wait                = wait || 0;
-    this.transform           = transform || indentityFn;
-
-    this.resetTimer(Date.now());
-}
-
-Stream.prototype = copy({
-
-    receive: function() {
-        return (new Breakpoint()).pushToArray(this.receiverBreakpoints);
-    },
-
-    send: function(data) {
-        if (this.closed) { throw 'closed channel' }
-
-        var
-        remaining,
-        me  = this,
-        now = Date.now();
-
-        // it is throttled?
-        if (this.wait > 0) {
-            remaining = this.releasingTime - now;
-
-            // renew the delivery scheduled task
-            clearTimeout(this.trailingEdgeTimeout);
-
-            this.trailingEdgeTimeout = setTimeout(function() {
-                Breakpoint.resumeAll(me.receiverBreakpoints, this.transform(data));
-                me.resetTimer(Date.now());
-            }, remaining);
-
-        // else send the value to ALL listeners
-        } else {
-            Breakpoint.resumeAll(this.receiverBreakpoints, this.transform(data));
-            this.resetTimer(now);
-        }
-
-        // schedule the sender
-        return new Breakpoint(0);
-    },
-
-    resetTimer: function(now) {
-        this.previousTime  = now;
-        this.releasingTime = this.wait + this.previousTime;
-    },
-
-}, Object.create(Channel.prototype));
-
-
-// copies from an object to another one
-function copy(from, to, own) {
-    for (var name in from) {
-        if (own === true) {
-            if (from.hasOwnProperty(name)) {
-                to[name] = from[name];
-            }
-        }
-        else {
-            to[name] = from[name];
-        }
-    }
-    return to;
-}
-
-function isFunction(fn) {
-    return typeof fn === 'function';
-}
-
-function isChannel(ch) {
-    return ch instanceof Channel;
-}
-
-function isPromise(pr) {
-    return pr && isFunction(pr.then);
+function isFunction(f) {
+    return typeof f === 'function';
 }
 
 function isObject(obj) {
@@ -409,8 +38,8 @@ function isArray(arr) {
     return Array.isArray(arr);
 }
 
-function isBreakpoint(obj) {
-    return obj instanceof Breakpoint;
+function isChannel(ch) {
+    return ch instanceof Channel;
 }
 
 function isGeneratorFunction(obj) {
@@ -428,321 +57,466 @@ function isGeneratorFunction(obj) {
     return (isFunction(proto.next) && isFunction(proto.throw));
 }
 
-// return a function that returns a filtered result when called
-// the filtering strategy depends on the argument passed
-function filter(filter) {
-    if (filter === void 0) {
-        // return arguments as array
-        return function filter(){
-            return slice.call(arguments);
-        }
-    }
+// returns new object whith the properties
+// promise: a Promise object
+// resolve: a function that resolves the promise
+// reject: a function that rejects the promise
+function deferredPromise() {
+    var deferred = {};
+    deferred.promise = new Promise(function(resolve, reject) {
+        deferred.resolve = resolve;
+        deferred.reject  = reject;
+    })
 
-    if (isFunction(filter)) {
-        // indentity
-        return filter;
-    }
-
-    if (!isNaN(filter)) {
-        // return n-th argument
-        return function singleArgFilter() {
-            return arguments[filter];
-        }
-    }
-
-    if (isArray(filter)) {
-        // uses passed array as keys to extract object properties
-        return function arrayToObject(val) {
-            var i, prop, ret = {};
-            for (i = 0; i < filter.length; i++) {
-                prop = filter[i];
-                ret[prop] = val[prop];
-            }
-            return ret;
-        }
-    }
+    return deferred;
 }
 
-
-// convert values to breakpoints
-function toBreakpoint(obj) {
-    var breakp;
-
-    if (isBreakpoint(obj)) {
-        // if is already a breakpoint, do nothing
+// convert to promise as much as possible
+// taking into account the following order
+// 1. Promise
+// 2. Channel
+function toPromise(obj) {
+    if (isPromise(obj)) {
         return obj;
     }
 
     if (isChannel(obj)) {
         return obj.receive();
     }
-
-    if (isPromise(obj)) {
-        // transform a promise in a breakpoint
-        breakp = new Breakpoint();
-        obj.then(function receive(v) { breakp.resume(v) });
-        isFunction(obj.catch) || obj.catch(function _throw(e) { breakp.throw(e) });
-        return breakp;
-    }
-
-    if (obj instanceof Process) {
-        breakp = new Breakpoint();
-        obj.done(function done(val, err) {
-            breakp.resume(val);
-            breakp.fireDone(val, err);
-        });
-        return breakp;
-    }
-
-    if (isArray(obj)) {
-        return arrToBreakpoint(obj);
-    }
-
-    if (isObject(obj)) {
-        return objToBreakpoint(obj);
-    }
 }
 
-// converts each value in an array to breakpoints
-function arrToBreakpoint(arr) {
-    var
-    i, breakp, oResume,
-    valuesArr  = [],
-    ret        = new Breakpoint(),
-    len        = arr.length,
-    numPending = len;
+// convert array to promise
+function arrayToPromiseAll(array) {
+    var promise;
+    return Promise.all(array.map(function(value) {
+        promise = toPromise(value);
+        if (isPromise(promise)) {
+            return promise;
+        }
 
-    for (i = 0; i < len; i++) {
-        breakp  = toBreakpoint(arr[i]);
-        oResume = breakp.resume;
+        return value;
+    }));
+}
 
-        breakp.resume = (function(oResume, valuesArr) {
-            return function resume(value) {
-                oResume.apply(this, arguments);
-                valuesArr.push(value);
-                numPending--;
-                if (numPending === 0) {
-                    ret.resume(valuesArr);
-                }
+// converts object to promise
+function objectToPromiseAll(obj) {
+    var promise,
+    promises = [],
+    result   = {},
+    array    = Object.keys(obj);
+
+    return new Promise(function(resolve) {
+
+        array.map(function(key, index) {
+            promise = toPromise(obj[key]);
+            if (isPromise(promise)) {
+                setupThen(promise, key);
+            } else {
+                result[key] = obj[key];
             }
-        })(oResume, valuesArr);
-    }
+        })
 
-    return ret;
+        Promise.all(promises).then(function() {
+            resolve(result);
+        })
+
+        function setupThen(promise, key) {
+            // default value
+            result[key] = void 0;
+
+            promise.then(function(value) {
+                result[key] = value;
+            })
+
+            promises.push(promise);
+        }
+    })
 }
 
-// converts each value in a object to breakpoints
-function objToBreakpoint(obj) {
-    var
-    i, name, breakp, oResume,
-    valuesObj  = {},
-    keys       = Object.keys(obj),
-    ret        = new Breakpoint(),
-    len        = keys.length,
-    numPending = len;
-
-    for (i = 0; i < len; i++) {
-        name    = keys[i];
-        breakp  = toBreakpoint(obj[name]);
-        oResume = breakp.resume;
-
-        breakp.resume = (function(oResume, valuesObj, name) {
-            return function resume(value) {
-                oResume.apply(this, arguments);
-                valuesObj[name] = value;
-                numPending--;
-                if (numPending === 0) {
-                    ret.resume(valuesObj);
-                }
+// convert array to promise
+function arrayToPromiseRace(array) {
+    var promise, isResolved = false;
+    return new Promise(function(resolve) {
+        array.map(function(value, key) {
+            promise = toPromise(value);
+            if (isPromise(promise)) {
+                setupThen(promise, key, resolve);
             }
-        })(oResume, valuesObj, name);
-    }
+        })
 
-    return ret;
+        function setupThen(promise, key, resolve) {
+            promise.then(function(value) {
+                if (isResolved) { return }
+                isResolved = true;
+                resolve({which: key, value: value});
+            })
+        }
+    });
 }
 
-// wrap a node.js asynchronic function and makes it
-// to return a breakpoint
-function driveFn(fn, ctx) {
-    if (!fn.__drivenFn) {
-        fn.__drivenFn = function drivenFn() {
+
+// convert array to promise that
+function objectToPromiseRace(obj) {
+    var promise, isResolved = false,
+    array = Object.keys(obj);
+
+    return new Promise(function(resolve) {
+        array.map(function(key) {
+            promise = toPromise(obj[key]);
+            if (isPromise(promise)) {
+                setupThen(promise, key, resolve);
+            }
+        })
+
+        function setupThen(promise, key, resolve) {
+            promise.then(function(value) {
+                if (isResolved) { return }
+                isResolved = true;
+                resolve({which: key, value: value});
+            })
+        }
+    });
+}
+
+// wrap a function that accepts callback as the last arguments
+// and makes it to return a Promise
+function promisifyFn(fn, ctx) {
+    var
+    args     = slice.call(arguments),
+    deferred = deferredPromise();
+
+    if (!fn.__promisifiedFn) {
+        fn.__promisifiedFn = function promisifiedFn() {
             var
-            args   = slice.call(arguments),
-            breakp = new Breakpoint();
+            args     = slice.call(arguments),
+            deferred = deferredPromise();
 
             args.push(function(err, value) {
                 if (err) {
-                    breakp.throw(err);
+                    deferred.reject(err);
                 } else {
-                    breakp.resume(value);
+                    deferred.resolve(value);
                 }
-            });
+            })
 
-            fn.apply(ctx || this, args);
+            fn.apply(ctx || this, args)
 
-            return breakp;
+            return deferred.promise;
         }
     }
 
-    return fn.__drivenFn;
+    return fn.__promisifiedFn;
 }
 
-var eventFunctionNames = [
-    'addEventListener',
-    'attachEvent',
-    'on',
-];
+// Buffer: simple array based buffer to use with channels
+function Buffer(size) {
+    this.size  = isNaN(size) ? 1 : size;
+    this.array = [];
+}
 
-// returns a function that executes a process
-function wrap(gen) {
-    if (! isGeneratorFunction(gen)) {
-        throw 'invalid generator function';
+Buffer.prototype = {
+
+    read: function() {
+        return this.array.shift();
+    },
+
+    write: function(value) {
+        if (this.isFull()) { return false }
+        this.array.push(value);
+        return true;
+    },
+
+    isFull: function() {
+        return !(this.array.length < this.size);
+    },
+
+    isEmpty: function() {
+        return this.array.length === 0;
     }
-
-    return function process() {
-        var
-        process = new Process(gen, this),
-        breakp  = toBreakpoint(process);
-        process.run.apply(process, arguments);
-        return breakp;
-    }
 }
 
-// Getjs main interface
-function get(obj) {
-    if (isGeneratorFunction(obj)) { return wrap(obj) }
-    return toBreakpoint(obj);
+// Channel: a structure to transport messages
+function indentityFn(x) {return x}
+
+function scheduledResolve(deferred, value) {
+    schedule(function() { deferred.resolve(value) })
 }
 
-// public API
-copy({
-    get                : get,
-    copy               : copy,
-    eventFunctionNames : eventFunctionNames,
+function Channel(buffer, transform) {
+    this.buffer           = buffer;
+    this.closed           = false;
+    this.data             = void 0;
+    this.senderPromises   = [];
+    this.receiverPromises = [];
+    this.transform        = transform || indentityFn;
+}
 
-    Breakpoint         : Breakpoint,
-    Process            : Process,
-    Channel            : Channel,
-    Stream             : Stream,
+Channel.prototype = {
 
-    global: function _global() {
-        copy(get, global, true);
-    },
+    receive: function() {
+        var data, deferred;
 
-    throws: function throws(d) {
-        Process.prototype.throws = !!d;
-    },
+        // is unbuffered
+        if (! this.buffer) {
+            // there is data?
+            if (this.data !== void 0) {
+                // resume the first sender coroutine
+                if (this.senderPromises[0]) {
+                    scheduledResolve(this.senderPromises.shift());
+                }
+                // clean and return
+                data      = this.data;
+                this.data = void 0;
+                return data;
 
-    // API
-
-    go: function go(gen) {
-        return wrap(gen).call(this);
-    },
-
-    filter: filter,
-
-    timeout: function timeout(t) {
-        return new Breakpoint(t);
-    },
-
-    chan: function chan(size, transform) {
-        if (size instanceof Buffer) {
-            return new Channel(size, transform);
-        }
-
-        // isNaN(null) == false  :O
-        if (isNaN(size) || size === null) {
-            return new Channel(null, transform);
-        }
-
-        return new Channel(new Buffer(size), transform);
-    },
-
-    stream: function stream(wait, transform) {
-        return new Stream(wait, transform);
-    },
-
-    sender: function sender(chan, filtr) {
-        if (! isChannel(chan)) { throw 'invalid channel' }
-        filtr = filter(filtr || 0);
-        return function sender() {
-            chan.send(filtr.apply(this, arguments));
-        }
-    },
-
-    send: function send(chan, value) {
-        if (isChannel(chan)) {
-            return chan.send(value);
-        } else {
-            throw 'invalid channel';
-        }
-    },
-
-    close: function close(chan) {
-        if (isChannel(chan)) {
-            return chan.close();
-        } else {
-            throw 'invalid channel';
-        }
-    },
-
-    listen: function listen(obj, eventName, chan, filtr) {
-        var name, i, isRegistered,
-        len = eventFunctionNames.length;
-
-        filtr = (filtr === void 0) ? filter(0) : filter(filtr);
-
-        if (! isChannel(chan)) { throw 'invalid channel' }
-        if (! obj) { throw 'invalid object' }
-
-        for (i = 0; i < len; i++) {
-            name = eventFunctionNames[i];
-            if (isFunction(obj[name])) {
-                obj[name](eventName, function EventListener() {
-                    get.send(chan, filtr.apply(this, arguments));
-                });
-                isRegistered = true;
-                break;
+            // if no data
+            } else {
+                // suspend the coroutine wanting to receive
+                deferred = deferredPromise();
+                this.receiverPromises.push(deferred);
+                return deferred.promise;
             }
         }
 
-        if (! isRegistered) {
-            throw 'the object provided must have one of the following functions: "'
-            + eventFunctionNames.join('", "') + '"';
-        }
+        // if buffered
+        // empty buffer?
+        if (this.buffer.isEmpty()) {
+            // suspend the coroutine wanting to receive
+            deferred = deferredPromise();
+            this.receiverPromises.push(deferred);
+            return deferred.promise;
 
-        return chan;
+        // some value in the buffer?
+        } else {
+            // resume the first sender coroutine
+            if (this.senderPromises[0]) {
+                scheduledResolve(this.senderPromises.shift());
+            }
+            // clean and return
+            return this.buffer.read();
+        }
     },
 
-    drive: function drive(obj, ctx) {
-        var
-        newObj, name, prop,
-        syncPrefix = /Sync$/;
+    send: function(data) {
+        if (this.closed) { throw 'closed channel' }
+        var deferred;
 
-        if (! obj) { return }
+        // is unbuffered
+        if (! this.buffer) {
+            // some stored data?
+            if (this.data !== void 0) {
+                // deliver data to the first waiting coroutine
+                if (this.receiverPromises[0]) {
+                    scheduledResolve(this.receiverPromises.shift(), this.data);
+                }
 
-        ctx = ctx || obj;
-
-        if (isFunction(obj)) {
-            return driveFn(obj, ctx);
-        } else {
-            newObj = {};
-            for (name in obj) {
-                if (syncPrefix.test(name)) { continue }
-                prop = obj[name];
-                newObj[name] = isFunction(prop) ? driveFn(prop, ctx) : prop;
+            // no stored data?
+            } else {
+                // pass sent data directly to the first waiting for it
+                if (this.receiverPromises[0]) {
+                    this.data = void 0;
+                    scheduledResolve(this.receiverPromises.shift(), this.transform(data));
+                    // schedule the the sender coroutine
+                    return get.timeout(0);
+                }
             }
-            return newObj;
+
+            // else, store the transformed data
+            this.data = this.transform(data);
+            deferred = deferredPromise();
+            this.senderPromises.push(deferred);
+            return deferred.promise;
+        }
+
+        // if buffered
+        // emty buffer?
+        if (! this.buffer.isFull()) {
+            // TODO: optimize below code
+            // store sent value in the buffer
+            this.buffer.write(this.transform(data));
+            // if any waiting for the data, give it
+            if (this.receiverPromises[0]) {
+                scheduledResolve(this.receiverPromises.shift(), this.buffer.read());
+            }
+        }
+
+        // full buffer?
+        if (this.buffer.isFull()) {
+            // stop until the buffer start to be drained
+            deferred = deferredPromise();
+            this.senderPromises.push(deferred);
+            return deferred.promise;
+        }
+    },
+
+    close: function() {
+        this.closed         = true;
+        this.senderPromises = [];
+        while (this.receiverPromises.length) {
+            scheduledResolve(this.receiverPromises.shift());
         }
     }
+}
 
-}, get);
+// spawns a coroutine
+get.go = function go(genf, args, ctx) {
+    var state,
+    gen = genf.apply(ctx || {}, args);
 
+    return new Promise(function(resolve, reject) {
+        // ensure it runs asynchronously
+        schedule(next);
 
-if (typeof exports !== 'undefined' && typeof require === 'function') {
+        function next(value) {
+            if (state && state.done) {
+                return resolve(value);
+            }
+
+            try {
+                state = gen.next(value);
+                value = state.value;
+            } catch (e) {
+                if (get.debug) {
+                    console.error(e.stack || e);
+                }
+                return reject(e);
+            }
+
+            if (isPromise(value)) {
+                return value.then(
+                    function onFulfilled(value) {
+                        next(value)
+                    },
+                    function onRejected(reason) {
+                        gen.throw(reason)
+                    }
+                );
+            }
+
+            next(value);
+        }
+    })
+}
+
+get.debug = true;
+
+// wraps a generator function
+// returns a function that spawns a coroutine
+get.wrap = function wrap(genf, ctx) {
+    if (isGeneratorFunction(genf)) {
+        return function go() {
+            return get.go(genf, slice.call(arguments), ctx || this);
+        }
+    }
+    throw 'invalid generator';
+}
+
+// sends a value to a channels
+get.send = function send(chan, value) {
+    if (isChannel(chan)) {
+        return chan.send(value);
+    }
+    throw 'unable to send values';
+}
+
+// receives from a channel
+get.recv = function receive(chan) {
+    if (isChannel(chan)) {
+        return chan.receive();
+    }
+    throw 'unable to receive values';
+}
+
+// stops a coroutine for a defined time
+get.timeout = function timeout(time) {
+    if (!isNaN(time) && time !== null) {
+        return new Promise(function(resolve) {
+            schedule(resolve, time)
+        })
+    }
+    throw 'invalid time';
+}
+
+// closes a channel
+get.close = function close(chan) {
+    if (isChannel(chan)) {
+        return chan.close();
+    } else {
+        throw 'invalid channel';
+    }
+}
+
+// creates a channel
+get.chan = function chan(size, transform) {
+    // isNaN(null) == false  :O
+    // is it a bug ?
+    if (isNaN(size) || size === null) {
+        return new Channel(null, transform);
+    }
+
+    return new Channel(new Buffer(size), transform);
+}
+
+// returns an object that contains all functions of
+// the passed object promisified
+get.promisify = function promisify(obj, ctx) {
+    var
+    newObj, name, value,
+    syncPrefix = /Sync$/;
+
+    if (!obj) { return }
+
+    ctx = ctx || obj;
+
+    if (isFunction(obj)) {
+        return promisifyFn(obj, ctx);
+    }
+
+    newObj = {};
+
+    for (name in obj) {
+        value = obj[name];
+        if (syncPrefix.test(name) || !obj.hasOwnProperty(name)) {
+            continue;
+        }
+        newObj[name] = isFunction(value) ? promisifyFn(value, ctx) : value;
+    }
+    return newObj;
+}
+
+// receives an array or object with promises
+// returns a promise that is resolved once al provided
+// promises are resolved
+get.all = function all(obj) {
+    if (isArray(obj)) {
+        return arrayToPromiseAll(obj);
+    }
+
+    if (isObject(obj)){
+        return objectToPromiseAll(obj);
+    }
+    throw 'invalid object'
+}
+
+// receives an array or object with promises
+// returns a promise that resolves once one of the provided
+// promises is resolved
+get.race = function race(obj) {
+    if (isArray(obj)) {
+        return arrayToPromiseRace(obj);
+    }
+
+    if (isObject(obj)){
+        return objectToPromiseRace(obj);
+    }
+    throw 'invalid object'
+}
+
+// publish
+if (typeof module === 'object') {
     module.exports = get;
 } else {
     global.get = get;
 }
 
-})(global_);
+})();
