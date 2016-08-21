@@ -1,53 +1,20 @@
 #Getjs
 
-JavaScript control flow library to make sequential the asynchonous code.
+Light weight JavaScript library to express concurrency patterns.
 
-**Getjs** is a control flow library based in generators to get rid of callback hells and Promises boilerplate by making sequential your asynchonous code. One of the Getjs key features is the ability to interoperte with libraries based on callbacks, Promise or event-driven APIs, in sequential way.
+Getjs is a control flow library based in generators to simplify the development of concurrent solutions for JavaScript. It works in both nodejs and the browser, allowing you to deal with the JavaScript asynchronous nature by writting sequential code.
 
-Example in Node.js:
-```js
-var fs = get.drive(require('fs'))
+Getjs implements _Communicating Sequential Process_(CSP) by emulating Golang concurrency primitives as much as possible with few deviations to fit in the JavaScript ecosystem. It works with every library based on Promises.
 
-get.go(function*(){
-    var stat = get(fs.stat(__filename)) // call fs.stats sequentially
-    console.log(stat)                   // log to the console
-})
-```
+Pingpong example (ported from [Go](http://talks.golang.org/2013/advconc.slide#6))
 
-In ~15Kb (unminified and uncompressed) Getjs makes possible to use a sequential control flow taking advantage of the huge JavaScript ecosystem including the whole Node.js API which is based on callbacks. It also brings CSP (Communicating Sequential Processes) to the JavaScript world.
-
-Examples of how Getjs allows you to use Promise-based libraries, for example, jQuery:
-
-**DOM events**
-```js
-// converting events to stream
-var clickStrm = get.listen($('#button1'), 'click', get.stream())
-
-get.go(function*(){
-    while(true) {
-        // logging the event object to the console
-        console.log(yield get(clickStrm))
-    }
-})
-```
-
-**AJAX**
-```js
-get.go(function*(){
-    // http request
-    var json = yield get($.get('http://github.com'))
-    console.log(json)
-})
-```
-
-Example that shows CSP with Getjs. Pingpong (ported from [Go](http://talks.golang.org/2013/advconc.slide#6))
 ```js
 var player = get(function*(name, table) {
-    var ball;
+    var ball
     while (true) {
         ball = yield get(table)
         if (table.closed) {
-            console.log('Table is gone')
+            console.log(name, 'table is gone')
             return
         }
         ball.hits += 1
@@ -61,228 +28,162 @@ var player = get(function*(name, table) {
     }
 })
 
-get(function*() {
+get.go(function*() {
     var
     table = get.chan()
 
-    player('A', table)
-    player('B', table)
-
+    player('Ping', table)
+    player('Pong', table)
+    
     yield get.send(table, {hits: 0})
     yield get.timeout(1000)
 
     get.close(table)
-})()
-```
-
-
-## With Getjs
-
-* You will be able to take advantage of the JavaScript asynchronicity by writing sequential code.
-* You will be able to reuse any Promise-based library avoiding the `then-callback` boilerplate.
-* You will use the whole Node.js asynchonous core API without the annoying `callback-hell`.
-* You can compose your application by creating lightweight processes which communicates by passing messages through channels.
-
-
-## API
-
-The API is published under the `get.` namespace, however it is possible to use it globally for rapid prototyping by using the `get.global()` function.
-
-```js
-// namespaced
-get()
-
-// using the global scope
-get.global()
-go(...)
-```
-
-> The rest of this document assumes using `get.global()` for all the following code snippets.
-
-
-## Get
-The `get` function is overloaded, it makes possible to await future values and convert generator functions to processes.
-
-Examples:
-```js
-// generator to process
-var proc = get(function*(firstName, lastName) {
-    return firstName + ' ' + lastName
-})
-
-// awaiting the returning value of a process
-yield get(proc('Yosbel', 'Marin'))
-
-// awaiting a value from a channel
-yield get(ch)
-
-// awaiting a promise
-yield get($.get('http://github.com'))
-
-
-// awaiting a parallel resolution
-yield get([
-    $.get('http://github.com/yosbelms/getjs'),
-    $.get('http://github.com/yosbelms/cor')
-])
-```
-
-Always use `yield` keyword before the `get` function unless you want to create a process by passing a generator function. There is detailed examples below.
-
-
-## Breakpoint
-Breakpoints are objects that tells processes to stop once yielded, it resumes the process execution once the method `resume` is internally called once some asynchronous task ends. It has a method (`done`) which accept callbacks to be executed either when the task is terminated or an error has occured inside a process.
-
-Example:
-```js
-var proc = get(function*(){
-    
-})
-
-// when a process is executed it returns a Breakpoint
-proc().done(function(returned, error){
-    // ...
 })
 ```
 
-Example using `get.go`:
+## Documentation
+
+0. [Installation](#installation)
+0. [Coroutines](#coroutines)
+0. [Channels](#channels)
+0. [Parallel Resolution](#parallel-resolution)
+0. [Race Resolution](#race-resolution)
+0. [Pausing Coroutines](#pausing-coroutines)
+0. [Promisifying](#promisifying)
+0. [Idiomatic Getjs](#idiomatic-getjs)
+0. [Debugging](#debugging)
+
+
+## Installation
+
+**Browser**
+
+```html
+<script src="get.js"></script>
+```
+
+**Nodejs**
+
 ```js
-get.go(function*(){
-    return 'ok'
-}).done(function(ret){
-    console.log(ret) //ok
+var get = require('getjs')
+```
+
+## Coroutines
+
+Coroutines are functions that runs asynchronously. The body of coroutines are generator functions, each time a promise is _yielded_ inside a coroutine it blocks until the promise is resolved or rejected. Each coroutine execution returns a promise that is resolve when the coroutine returns, or rejected if an error occurs.
+
+Spawning a coroutine.
+
+```js
+get.go(function *() {
+    console.log('executed')
+})
+
+// with arguments
+get.go(function *(name, age) {
+    console.log(name, age)
+}, ['john', 30])
+```
+
+In many occasions you may need to declare coroutines to spawn it on demmand.
+
+```js
+var worker = get.wrap(function *(time) {
+    console.log(time)
+})
+
+worker(100)
+worker(500)
+```
+
+Waiting for a promise.
+
+```js
+get.go(function *() {
+    var n = yield Promise.resolve(1)
 })
 ```
 
+Promise flow.
 
-## Processes
-Processes (a.k.a. tasks or coroutines) are lightweight scheduled functions. It accepts *Generator Function*s as the first parameter. Getjs takes advantage of the native javascript scheduler, that is, there is not a custom scheduler implementation. Processes along with Channels are the main pieces of the Getjs CSP approach.
-
-
-### go(gen: GeneratorFunction): Breakpoint
-Creates a new process and executes it returning a function.
 ```js
-var task = get.go(function*(url){
-    ...
+get.go(function *() {
+    return 5
+}).then(function(v) {
+    console.log(v)
+}).catch(function(e) {
+    console.log(e.stack)
 })
-
-task('http://github.com')
-```
-
-## Driven Callbacks
-Driven callbacks are callbacks converted to the breakpoint underlaying architecture, it's akin to **promisifyAll** in Bluebird library.
-
-### drive(object?: Function|Object, ctx?: Object): Object|Function
-Converts a callback-based function or an object containing callback-based functions to a function or object ready to be used with `yield get()`.
-
-With a function:
-```js
-var stat = get.drive(require('fs').stat)
-
-get(function*() {
-    var stats = yield get(stat(__filename))
-    console.log(stats)
-})()
-```
-
-With an object containing callback-based functions:
-```js
-var fs = get.drive(require('fs'))
-
-get(function*() {
-    var stat = yield get(fs.stat(__filename))
-    console.log(stat)
-})()
 ```
 
 ## Channels
-Channels are the central piece of CSP. They are structures used to communicate and synchronize processes, between them or with the outside world.
 
-Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other process receives. Once the data has been received, the sender will be unblocked and the receptor will be blocked until new data is received. Unbuffered channels are also known as _synchronic channels_. When some data is sent to a buffered channel it only blocks the processes if the buffer is full. The receiver only blocks if there is no data in the buffer. The behavior is exactly like in Go language.
+Channels are structures used to communicate and synchronize coroutines. The behavior is exactly like in Go language.
 
-A stream is an unbuffered (but not synchronic) channel which satisfies certain requirements. It will block the sender, but rewrite the data if it has not been received yet, a sort of sliding buffer of size 1. In addition, it guarantees to deliver data to all receivers -multicast- and can be throttled.
+Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other process receives. Once the data has been received, the sender will be unblocked and the receptor will be blocked until new data is received. Unbuffered channels are also known as _synchronic channels_.
 
 
-### chan(bufferSize?: Number, transform?: Function): Channel
-Creates a new `channel`. If `transform` is given then each value will be transformed on send.
+`get.send` and `get.recv` operations must preceded by the `yield` keyword.
+
 ```js
-var ch  = chan()  // unbuffered channel
-var bch = chan(5) // buffered channel which its buffer size is 5
+// create new channel
+var ch = get.chan()
+
+get.go(function *() {
+    // send 'message' to a `ch`
+    yield get.send(ch, 'message')
+
+    // close the channel
+    ch.close()
+})
+
+get.go(function *() {
+    // receive from `ch`
+    var msg = yield get.recv(ch)
+
+    console.log(msg)
+})
 ```
 
-With transformers:
+When some data is sent to a buffered channel it only blocks the coroutine if the buffer is full. The receiver only blocks if there is no data in the buffer.
+
 ```js
-var ch = chan(3, function(v){ return v * 2 })
-
-send(ch, 1)
-send(ch, 2)
-send(ch, 3)
-
-get(function(){
-    console.log(yield get(ch))
-})()
-
-output:
-2
-4
-6
+var bufferSize = 20
+var ch = get.chan(bufferSize)
 ```
 
-### stream(throttle?: Number, transform? Function): Stream
-Creates a stream, optionally receiving a throttling time in milliseconds.
+Values passed through channels can be tranformed before to be delivered.
+
 ```js
-var stm  = stream()    // unthrottled
-var tstm = stream(100) // stream throttled with a 100 msecs
+function trans(x) {
+    return x*2
+}
+
+// provide a transformer
+var ch = chan(null, trans)
 ```
 
-### yield? send(channel: Channel, data: Object)
-Sends data to a channel. Always use it preceded by the `yield` keyword, unless you are using it from outside of a process.
-```js
-var ch = chan()
-get(function*(){
-    yield send(ch, 'some message')
-})()
-```
+## Parallel Resolution
 
-### yield get(channel: Channel): Object
-Receives data from a channel, Promise or `driven` functions. If given an native array or object, `get` will resolve all in parallel.
-```js
-var ch = chan()
-get(function*(){
-    var msg = yield get(ch)
-})()
-```
-> Notice: The `yield` keyword is needed.
+You can wait for many tasks executed in parallel by using `get.all`.
 
-Example using jQuery promises implementation:
 ```js
-var player = yield get($.get('http://api.com/player/1'))
-console.log(player)
-```
-
-Example using driven callbacks in Node.js:
-```js
-var fs = get.drive(require('fs'))
-
-get(function*(){
-    var stat = yield get(fs.stat(__filename))
-    console.log(stat)
-})()
-```
-
-Example using parallel resolutions:
-```js
-var result = yield get([
+// proding an array of promises
+var result = yield get.all([
     $.get('http://api.com/books'),
     $.get('http://api.com/authors')
 ]);
 
 var books   = result[0];
 var authors = result[1];
+```
 
-// even better with objects
+You can cast by keys by using objects.
 
-var result = yield get({
+```js
+// roviding an object
+var result = yield get.all({
     books:   $.get('http://api.com/books'),
     authors: $.get('http://api.com/authors')
 });
@@ -291,105 +192,98 @@ var books   = result.books;
 var authors = result.authors;
 ```
 
-### close(channel: Channel)
-Closes a channel.
-```js
-close(ch)
-```
+## Race Resolution
 
-
-## Utilities
-### yield timeout(time: Number)
-Stops a process for the specified time (in milliseconds).
-```js
-get(function*(){
-    yield timeout(100) // pause it 100 milliseconds
-})()
-```
-> Notice: The `yield` keyword is needed
-
-### throws(throws? Boolean)
-Sets whether to make processes throws on fail or not. The Getjs processes fails silently by default, but if you want processes fails loudly while debugging you code, just write `get.throws(true)` somewhere in your code:
+`get.race` returns promise that resolves once one of them has been resolved. The returned promise resolves with an object whith the format `{which: key, value: value}`.
 
 ```js
-// make processes throws on fail
-get.throws(true)
-```
+get.go(function *() {
+    var result = yield get.race([$.get('http://api.com/books'), timeout(500)])
 
-> Recommended for production.
-
-## Idiomatic API
-### filter(filter: Undefined|Function|Number|Array): Function
-Returns a filter function.
-
-If the filter parameter is _Undefined_ the returning function converts its arguments into an array and returns that.
-
-```js
-var filt = filter()
-filt(1, 2) // [1, 2]
-```
-
-If given a Function, the returned function will be the same as the one passed in.
-
-```js
-var filt = filter(function(a, b){
-    return a + b
+    // found books
+    if (result.which === 0) {
+        var books = result.value;
+    } else {
+        // timed out
+    }
 })
-
-filt(1, 2) // 3
 ```
 
-If given a number, the filter function will return the n-th (0-based) argument.
-```js
-var filt = filter(1)
-filt(1, 2) // 2
-```
-
-If given an array, it will use the array values as keys to extract the values of the properties in a filtered object.
+Also support objects.
 
 ```js
-var person = {
-    name    : 'Yosbel',
-    surName : 'Marin',
-    age     : 28
-}
+get.go(function *() {
+    var result = yield get.race({
+        books   : $.get('http://api.com/books'),
+        timeout : timeout(500)
+    })
 
-var filt = filter(['name', 'age'])
-
-filt(person) // {name: 'Yosbel', age: 28}
+    // found books
+    if (result.which === 'books') {
+        var books = result.value;
+    } else {
+        // timed out
+    }
+})
 ```
 
-### sender(channel: Channel, filter: Function): Function
-Returns a function that sends its arguments to a channel each time it is called. The channel will receive the function's arguments in the form of an array.
+## Pausing Coroutines
+
+Some times you want to block a couroutine a span of time.
+
 ```js
-var ch = chan()
-var sendr = sender(ch)
-
-sendr(1, 2) // an array equal to [1, 2] will be sent
+// stop by 20 milliseconds
+yield get.timeout(20)
 ```
 
-The true usefulness of this function is when used with events. For example:
+## Promisifying
+
+It is possible to adapt callback-based API to be used with Getjs.
+
 ```js
-$('.button').on('click', sender(ch))
-// send the event's parameters to the channel on each click
+var fs = require('fs')
+
+// make the callback-based function returns a promise
+var stat = get.promisify(fs.stat)
+
+
+get.go(function *() {
+    var stats = yield get(stat('path/to/file'))
+    console.log(stats)
+})
 ```
 
-### listen(eventEmitter: Object, eventName: String, channel: Channel, filterFunction?: Function): Channel
-Adds a callback event listener to an Object and returns a channel passed as the third argument. This utility assumes the `eventEmitter` has a function to add event listeners of the following form:
+Also you can promisify the entire module.
+
 ```js
-addEventListener|attachEvent|on(eventName: String, callback: Function)
-```
-The default filter is `filter(0)`
+var fs = get.promisify(require('fs'))
 
-Example:
+get.go(function *() {
+    var stats = yield fs.stat('path/to/file')
+})
+```
+
+## Idiomatic Getjs
+
+The `get` function is overloaded, making possible to write more succint code. If the first parametter is a generator function it will relay on `get.wrap` else it will try to convert the value to a promise through `get.recv` if channel, or `get.all` is object or array is provided.
+
 ```js
-elem = document.getElementById('button')
+// wrapped coroutine
+func = get(function *() {})
 
-// listen to the element through a Stream
-ch = listen(elem, 'click', stream())
+// receive from a channel
+yield get(channel)
 
-// log to the console all sent event objects
-get(function*() {
-    while (true) console.log(yield get(ch))
-})()
+// parallel resolution
+yield get([a, b, c])
 ```
+
+## Debugging
+
+Coroutine errors are easy to handle because the promise `catch` function. During development all coroutine errors are logged to the console. For production you should avoid this behaviour by turning `get.debug` to `false`.
+
+```
+get.debug = false
+```
+
+(c) 2016 Yosbel Marín
