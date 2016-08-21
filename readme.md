@@ -1,5 +1,7 @@
 #Getjs
 
+![badge](https://circleci.com/gh/yosbelms/getjs/tree/master.png?circle-token=1ed7f0fa8180138ce80a45c727fff58cefe49736)
+
 Light weight JavaScript library to express concurrency patterns.
 
 Getjs is a control flow library based in generators to simplify the development of concurrent solutions for JavaScript. It works in both nodejs and the browser, allowing you to deal with the JavaScript asynchronous nature by writting sequential code.
