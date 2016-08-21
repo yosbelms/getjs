@@ -1,31 +1,15 @@
 
-
 describe('get function should', function() {
-    var br, ch;
+    var promise, ch, fn;
 
     it('return a function if generator is given', function() {
-        br = get(function*(){})
-        expect(isFunction(br)).toBe(true)
+        fn = get(function*(){})
+        expect(isFunction(fn)).toBe(true)
     })
 
-    it('return a breakpoint if promise is given', function() {
-        br = get(new Promise(function(){}))
-        expect(isBreakpoint(br)).toBe(true)
-    })
-
-    it('return a breakpoint if process is given', function() {
-        br = get(new get.Process())
-        expect(isBreakpoint(br)).toBe(true)
-    })
-
-    it('return a breakpoint if array is given', function() {
-        br = get([])
-        expect(isBreakpoint(br)).toBe(true)
-    })
-
-    it('return a breakpoint if object is given', function() {
-        br = get({})
-        expect(isBreakpoint(br)).toBe(true)
+    it('return the same promise if promise is given', function() {
+        promise = get(new Promise(function(){}))
+        expect(isPromise(promise)).toBe(true)
     })
 
     it('delegate to `receive` if channel is given', function() {
@@ -42,7 +26,7 @@ describe('get function should', function() {
     })
 
     it('return a undefined else', function() {
-        br = get(1)
-        expect(br).toBeUndefined()
+        promise = get(1)
+        expect(promise).toBeUndefined()
     })
 })
