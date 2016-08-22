@@ -13,7 +13,7 @@ var player = get(function*(name, table) {
         console.log(name, ball.hits)
         yield get.timeout(100)
 
-        if (! table.closed) {
+        if (table.opened) {
             yield get.send(table, ball)
         }
     }

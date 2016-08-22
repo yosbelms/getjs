@@ -2,7 +2,8 @@ var get = require('../get')
 
 var worker = get(function *(ch, name) {
     var val;
-    while ((val = yield get.recv(ch)) != undefined) {
+    while (ch.opened) {
+        val = yield get.recv(ch)
         yield get.timeout(val*30)
         console.log('worker: ', name, ' task:', val)
     }
@@ -18,7 +19,7 @@ var pool = get(function *(ch, numWorkers, numTasks) {
     }
 
     console.log('close')
-    ch.close()
+    get.close(ch)
 })
 
 get.go(function *() {
