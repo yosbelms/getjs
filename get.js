@@ -243,13 +243,17 @@ function scheduledResolve(deferred, value) {
 }
 
 function Channel(buffer, transform) {
+    this.id               = '#' + Channel.id++;
     this.buffer           = buffer;
     this.closed           = false;
+    this.opened           = true;
     this.data             = void 0;
     this.senderPromises   = [];
     this.receiverPromises = [];
     this.transform        = transform || indentityFn;
 }
+
+Channel.id = 0;
 
 Channel.prototype = {
 
@@ -298,7 +302,7 @@ Channel.prototype = {
     },
 
     send: function(data) {
-        if (this.closed) { throw 'closed channel' }
+        if (this.closed) { throw 'Error: closed channel ' + this.id }
         var deferred;
 
         // is unbuffered
@@ -351,6 +355,7 @@ Channel.prototype = {
 
     close: function() {
         this.closed         = true;
+        this.opened         = false;
         this.senderPromises = [];
         while (this.receiverPromises.length) {
             scheduledResolve(this.receiverPromises.shift());
@@ -408,7 +413,7 @@ get.wrap = function wrap(genf, ctx) {
             return get.go(genf, slice.call(arguments), ctx || this);
         }
     }
-    throw 'invalid generator';
+    throw 'Error: invalid generator';
 }
 
 // sends a value to a channels
@@ -416,7 +421,7 @@ get.send = function send(chan, value) {
     if (isChannel(chan)) {
         return chan.send(value);
     }
-    throw 'unable to send values';
+    throw 'Error: unable to send values';
 }
 
 // receives from a channel
@@ -424,7 +429,7 @@ get.recv = function receive(chan) {
     if (isChannel(chan)) {
         return chan.receive();
     }
-    throw 'unable to receive values';
+    throw 'Error: unable to receive values';
 }
 
 // stops a coroutine for a defined time
@@ -434,16 +439,7 @@ get.timeout = function timeout(time) {
             schedule(resolve, time)
         })
     }
-    throw 'invalid time';
-}
-
-// closes a channel
-get.close = function close(chan) {
-    if (isChannel(chan)) {
-        return chan.close();
-    } else {
-        throw 'invalid channel';
-    }
+    throw 'Error: invalid time';
 }
 
 // creates a channel
@@ -455,6 +451,15 @@ get.chan = function chan(size, transform) {
     }
 
     return new Channel(new Buffer(size), transform);
+}
+
+// closes a channel
+get.close = function close(chan) {
+    if (isChannel(chan)) {
+        return chan.close();
+    } else {
+        throw 'Error: invalid channel';
+    }
 }
 
 // returns an object that contains all functions of
@@ -495,7 +500,7 @@ get.all = function all(obj) {
     if (isObject(obj)){
         return objectToPromiseAll(obj);
     }
-    throw 'invalid object'
+    throw 'Error: invalid object'
 }
 
 // receives an array or object with promises
@@ -509,7 +514,7 @@ get.race = function race(obj) {
     if (isObject(obj)){
         return objectToPromiseRace(obj);
     }
-    throw 'invalid object'
+    throw 'Error: invalid object'
 }
 
 // publish
