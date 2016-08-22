@@ -24,7 +24,7 @@ var player = get(function*(name, table) {
         console.log(name, ball.hits)
         yield get.timeout(100)
 
-        if (! table.closed) {
+        if (table.opened) {
             yield get.send(table, ball)
         }
     }
@@ -43,6 +43,8 @@ get.go(function*() {
     get.close(table)
 })
 ```
+
+[More examples](https://github.com/yosbelms/getjs/tree/master/examples)
 
 ## Documentation
 
@@ -124,9 +126,6 @@ Channels are structures used to communicate and synchronize coroutines. The beha
 
 Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other process receives. Once the data has been received, the sender will be unblocked and the receptor will be blocked until new data is received. Unbuffered channels are also known as _synchronic channels_.
 
-
-`get.send` and `get.recv` operations must preceded by the `yield` keyword.
-
 ```js
 // create new channel
 var ch = get.chan()
@@ -136,7 +135,7 @@ get.go(function *() {
     yield get.send(ch, 'message')
 
     // close the channel
-    ch.close()
+    get.close(ch)
 })
 
 get.go(function *() {
@@ -146,6 +145,8 @@ get.go(function *() {
     console.log(msg)
 })
 ```
+
+> `get.send` and `get.recv` operations must preceded by the `yield` keyword.
 
 When some data is sent to a buffered channel it only blocks the coroutine if the buffer is full. The receiver only blocks if there is no data in the buffer.
 
@@ -163,6 +164,17 @@ function trans(x) {
 
 // provide a transformer
 var ch = chan(null, trans)
+```
+
+Channels can be closed using `get.close` function, sending to a closed channel will throw an error. `ch.closed` and `ch.opened` allows to know whether a channel is closed or not.
+
+```js
+while(ch.opened) {
+    yield get.send(ch)
+}
+
+// close it somewhere in your code
+get.close(ch)
 ```
 
 ## Parallel Resolution
