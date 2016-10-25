@@ -43,9 +43,7 @@ function isChannel(ch) {
 }
 
 function isGeneratorFunction(obj) {
-    var
-    constr,
-    proto;
+    var constr, proto;
 
     if (obj === void 0) { return false }
     constr = obj.constructor;
@@ -242,9 +240,8 @@ function scheduledResolve(deferred, value) {
     schedule(function() { deferred.resolve(value) })
 }
 
-function Channel(buffer, transform) {
+function Channel(transform) {
     this.id               = '#' + Channel.id++;
-    this.buffer           = buffer;
     this.closed           = false;
     this.opened           = true;
     this.data             = void 0;
@@ -260,44 +257,23 @@ Channel.prototype = {
     receive: function() {
         var data, deferred;
 
-        // is unbuffered
-        if (! this.buffer) {
-            // there is data?
-            if (this.data !== void 0) {
-                // resume the first sender coroutine
-                if (this.senderPromises[0]) {
-                    scheduledResolve(this.senderPromises.shift());
-                }
-                // clean and return
-                data      = this.data;
-                this.data = void 0;
-                return data;
-
-            // if no data
-            } else {
-                // suspend the coroutine wanting to receive
-                deferred = deferredPromise();
-                this.receiverPromises.push(deferred);
-                return deferred.promise;
-            }
-        }
-
-        // if buffered
-        // empty buffer?
-        if (this.buffer.isEmpty()) {
-            // suspend the coroutine wanting to receive
-            deferred = deferredPromise();
-            this.receiverPromises.push(deferred);
-            return deferred.promise;
-
-        // some value in the buffer?
-        } else {
+        // there is data?
+        if (this.data !== void 0) {
             // resume the first sender coroutine
             if (this.senderPromises[0]) {
                 scheduledResolve(this.senderPromises.shift());
             }
             // clean and return
-            return this.buffer.read();
+            data      = this.data;
+            this.data = void 0;
+            return data;
+
+        // if no data
+        } else {
+            // suspend the coroutine wanting to receive
+            deferred = deferredPromise();
+            this.receiverPromises.push(deferred);
+            return deferred.promise;
         }
     },
 
@@ -305,52 +281,29 @@ Channel.prototype = {
         if (this.closed) { throw 'Error: closed channel ' + this.id }
         var deferred;
 
-        // is unbuffered
-        if (! this.buffer) {
-            // some stored data?
-            if (this.data !== void 0) {
-                // deliver data to the first waiting coroutine
-                if (this.receiverPromises[0]) {
-                    scheduledResolve(this.receiverPromises.shift(), this.data);
-                }
-
-            // no stored data?
-            } else {
-                // pass sent data directly to the first waiting for it
-                if (this.receiverPromises[0]) {
-                    this.data = void 0;
-                    scheduledResolve(this.receiverPromises.shift(), this.transform(data));
-                    // schedule the the sender coroutine
-                    return get.timeout(0);
-                }
-            }
-
-            // else, store the transformed data
-            this.data = this.transform(data);
-            deferred = deferredPromise();
-            this.senderPromises.push(deferred);
-            return deferred.promise;
-        }
-
-        // if buffered
-        // emty buffer?
-        if (! this.buffer.isFull()) {
-            // TODO: optimize below code
-            // store sent value in the buffer
-            this.buffer.write(this.transform(data));
-            // if any waiting for the data, give it
+        // some stored data?
+        if (this.data !== void 0) {
+            // deliver data to the first waiting coroutine
             if (this.receiverPromises[0]) {
-                scheduledResolve(this.receiverPromises.shift(), this.buffer.read());
+                scheduledResolve(this.receiverPromises.shift(), this.data);
+            }
+
+        // no stored data?
+        } else {
+            // pass sent data directly to the first waiting for it
+            if (this.receiverPromises[0]) {
+                this.data = void 0;
+                scheduledResolve(this.receiverPromises.shift(), this.transform(data));
+                // schedule the the sender coroutine
+                return get.timeout(0);
             }
         }
 
-        // full buffer?
-        if (this.buffer.isFull()) {
-            // stop until the buffer start to be drained
-            deferred = deferredPromise();
-            this.senderPromises.push(deferred);
-            return deferred.promise;
-        }
+        // else, store the transformed data
+        this.data = this.transform(data);
+        deferred = deferredPromise();
+        this.senderPromises.push(deferred);
+        return deferred.promise;
     },
 
     close: function() {
@@ -362,6 +315,62 @@ Channel.prototype = {
         }
     }
 }
+
+// Buffered Channel
+function BufferedChannel(buffer, transform) {
+    Channel.call(this, transform);
+    this.buffer = buffer;
+}
+
+BufferedChannel.prototype = new Channel();
+
+Object.assign(BufferedChannel.prototype, {
+
+    senderPromises  : null,
+
+    receiverPromises: null,
+
+    receive: function() {
+        var deferred;
+
+        // empty buffer?
+        if (this.buffer.isEmpty()) {
+            // suspend the coroutine wanting to receive
+            deferred = deferredPromise();
+            this.receiverPromises.push(deferred);
+            return deferred.promise;
+        }
+
+        // resume the first sender coroutine
+        if (this.senderPromises[0]) {
+            scheduledResolve(this.senderPromises.shift());
+        }
+        // clean and return
+        return this.buffer.read();
+    },
+
+    send: function(data) {
+        if (this.closed) { throw 'Error: closed channel ' + this.id }
+        var deferred;
+
+        // full buffer?
+        if (this.buffer.isFull()) {
+            // stop until the buffer start to be drained
+            deferred = deferredPromise();
+            this.senderPromises.push(deferred);
+            return deferred.promise;
+        }
+
+        // TODO: optimize below code
+        // store sent value in the buffer
+        this.buffer.write(this.transform(data));
+        // if any waiting for the data, give it
+        if (this.receiverPromises[0]) {
+            scheduledResolve(this.receiverPromises.shift(), this.buffer.read());
+        }
+    },
+})
+
 
 // spawns a coroutine
 get.go = function go(genf, args, ctx) {
@@ -424,7 +433,7 @@ get.send = function send(chan, value) {
     throw 'Error: unable to send values';
 }
 
-// receives from a channel
+// receives from a channel or promise
 get.recv = function receive(chan) {
     if (isChannel(chan)) {
         return chan.receive();
@@ -447,10 +456,10 @@ get.chan = function chan(size, transform) {
     // isNaN(null) == false  :O
     // is it a bug ?
     if (isNaN(size) || size === null) {
-        return new Channel(null, transform);
+        return new Channel(transform);
     }
 
-    return new Channel(new Buffer(size), transform);
+    return new BufferedChannel(new Buffer(size), transform);
 }
 
 // closes a channel
