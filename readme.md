@@ -1,12 +1,12 @@
-#Getjs
+# Getjs
 
 ![badge](https://circleci.com/gh/yosbelms/getjs/tree/master.png?circle-token=1ed7f0fa8180138ce80a45c727fff58cefe49736)
 
 JavaScript library to express concurrency patterns.
 
-Getjs is a control flow library based in generators to simplify the development of concurrent solutions for JavaScript. It works in both nodejs and the browser, allowing you to deal with the JavaScript asynchronous nature by writting sequential code.
+Getjs is a control flow library based on generators to simplify the development of concurrent solutions for JavaScript. It works in both nodejs and the browser, allowing you to deal with the JavaScript asynchronous nature by writing sequential code.
 
-Getjs implements _Communicating Sequential Process_(CSP) by emulating Golang concurrency primitives as much as possible with few deviations to fit in the JavaScript ecosystem. It works with every library based on Promises.
+Getjs implements _Communicating Sequential Process_(CSP) by emulating Golang concurrency primitives as much as possible with a few deviations to fit in the JavaScript ecosystem. It works with every library based on Promises.
 
 Pingpong example (ported from [Go](http://talks.golang.org/2013/advconc.slide#6))
 
@@ -74,7 +74,7 @@ var get = require('getjs')
 
 ## Coroutines
 
-Coroutines are functions that runs asynchronously. The body of coroutines are generator functions, each time a promise is _yielded_ inside a coroutine it blocks until the promise is resolved or rejected. Each coroutine execution returns a promise that is resolve when the coroutine returns, or rejected if an error occurs.
+Coroutines are functions that run asynchronously. The body of coroutines are generator functions. Each time a promise is _yielded_ inside a coroutine it blocks until the promise is resolved or rejected. Each coroutine execution returns a promise that is resolved when the coroutine returns, or rejected if an error occurs.
 
 Spawning a coroutine.
 
@@ -89,7 +89,7 @@ get.go(function *(name, age) {
 }, ['john', 30])
 ```
 
-In many occasions you may need to declare coroutines to spawn it on demmand.
+In many occasions you may need to declare coroutines to spawn on demand.
 
 ```js
 var worker = get.wrap(function *(time) {
@@ -122,7 +122,7 @@ get.go(function *() {
 
 ## Channels
 
-Channels are structures used to communicate and synchronize coroutines. The behavior is exactly like in Go language.
+Channels are structures used to communicate and synchronize coroutines. The behavior is exactly like in the Go language.
 
 Channels can be buffered or unbuffered. When sending data through unbuffered channels it always blocks the sender until some other process receives. Once the data has been received, the sender will be unblocked and the receptor will be blocked until new data is received. Unbuffered channels are also known as _synchronic channels_.
 
@@ -155,7 +155,7 @@ var bufferSize = 20
 var ch = get.chan(bufferSize)
 ```
 
-Values passed through channels can be tranformed before to be delivered.
+Values passed through channels can be tranformed before being delivered.
 
 ```js
 function trans(x) {
@@ -166,7 +166,7 @@ function trans(x) {
 var ch = chan(null, trans)
 ```
 
-Channels can be closed using `get.close` function, sending to a closed channel will throw an error. `ch.closed` and `ch.opened` allows to know whether a channel is closed or not.
+Channels can be closed using `get.close` function. Sending to a closed channel will throw an error. `ch.closed` and `ch.opened` allows knowing whether a channel is closed or not.
 
 ```js
 while(ch.opened) {
@@ -207,7 +207,7 @@ var authors = result.authors;
 
 ## Race Resolution
 
-`get.race` returns promise that resolves once one of them has been resolved. The returned promise resolves with an object whith the format `{which: key, value: value}`.
+`get.race` returns a promise that resolves once one its tasks has been resolved. The returned promise resolves with an object of the format `{which: key, value: value}`.
 
 ```js
 get.go(function *() {
@@ -242,7 +242,7 @@ get.go(function *() {
 
 ## Pausing Coroutines
 
-Some times you want to block a couroutine a span of time.
+Some times you want to block a couroutine for a span of time.
 
 ```js
 // stop by 20 milliseconds
@@ -251,7 +251,7 @@ yield get.timeout(20)
 
 ## Promisifying
 
-It is possible to adapt callback-based API to be used with Getjs.
+It is possible to adapt a callback-based API to be used with Getjs.
 
 ```js
 var fs = require('fs')
@@ -278,7 +278,7 @@ get.go(function *() {
 
 ## Idiomatic Getjs
 
-The `get` function is overloaded, making possible to write more succint code. If the first parametter is a generator function it will relay on `get.wrap` else it will try to convert the value to a promise through `get.recv` if channel, or `get.all` is object or array is provided.
+The `get` function is overloaded, making it possible to write more succinct code. If the first parameter is a generator function it will relay on `get.wrap` else it will try to convert the value to a promise through `get.recv` if a channel, or `get.all` if an object or array is provided.
 
 ```js
 // wrapped coroutine
@@ -293,7 +293,7 @@ yield get([a, b, c])
 
 ## Debugging
 
-Coroutine errors are easy to handle because the promise `catch` function. During development all coroutine errors are logged to the console. For production you should avoid this behaviour by turning `get.debug` to `false`.
+Coroutine errors are easy to handle because the promise `catch` function. During development all coroutine errors are logged to the console. For production you should avoid this behaviour by setting `get.debug` to `false`.
 
 ```
 get.debug = false
